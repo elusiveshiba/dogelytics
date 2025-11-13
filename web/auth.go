@@ -65,7 +65,7 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, userID string) {
 		Value:    val,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   strings.HasPrefix(s.config.BindAddr, "0.0.0.0:") == false, // best-effort
+		Secure:   !strings.HasPrefix(s.config.BindAddr, "0.0.0.0:"), // best-effort
 		SameSite: http.SameSiteLaxMode,
 	})
 }

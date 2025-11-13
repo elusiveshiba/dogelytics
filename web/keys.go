@@ -30,6 +30,7 @@ func (s *Server) HandleGETKeys(w http.ResponseWriter, r *http.Request) {
 		CreatedAt time.Time
 		ExpiresAt string
 		Revoked   bool
+		Expired   bool
 	}
 	var list []keyView
 	for _, k := range keys {
@@ -38,9 +39,11 @@ func (s *Server) HandleGETKeys(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: k.CreatedAt,
 			ExpiresAt: "",
 			Revoked:   k.RevokedAt.Valid,
+			Expired:   false,
 		}
 		if k.ExpiresAt.Valid {
 			kv.ExpiresAt = k.ExpiresAt.Time.UTC().Format(time.RFC3339)
+			kv.Expired = time.Now().After(k.ExpiresAt.Time)
 		}
 		list = append(list, kv)
 	}
@@ -71,6 +74,142 @@ func (s *Server) HandleGETKeys(w http.ResponseWriter, r *http.Request) {
 		CanCreateMore:  activeCount < s.config.MaxKeysPerUser,
 	}
 	t := template.Must(template.New("keys").Parse(htmlHeader + `
+<style>
+.stats-widget {
+  background: #c0c0c0;
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  padding: 12px;
+  margin-bottom: 12px;
+  color: #000;
+}
+.stats-widget h3 {
+  color: #fff;
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  background: #000080;
+  padding: 3px 5px;
+  font-weight: bold;
+}
+.stats-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.control-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.control-label {
+  font-size: 11px;
+  min-width: 65px;
+  font-weight: bold;
+}
+.stats-timeframe button,
+.stats-filter button {
+  padding: 3px 8px;
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
+  border-right: 2px solid #000;
+  border-bottom: 2px solid #000;
+  box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080;
+  background: #c0c0c0;
+  color: #000;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  min-width: 50px;
+}
+.stats-timeframe button:hover,
+.stats-filter button:hover {
+  background: #c0c0c0;
+}
+.stats-timeframe button.active,
+.stats-filter button.active {
+  border-top: 2px solid #000;
+  border-left: 2px solid #000;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  box-shadow: inset -1px -1px 0 #dfdfdf, inset 1px 1px 0 #808080;
+  padding: 4px 7px 2px 9px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+  max-width: 250px;
+}
+.stat-box {
+  background: #c0c0c0;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  box-shadow: inset -1px -1px 0 #c0c0c0, inset 1px 1px 0 #000;
+  padding: 8px;
+  text-align: center;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 4px;
+  color: #000;
+}
+.stat-label {
+  font-size: 10px;
+  color: #000;
+}
+.chart-container {
+  background: #fff;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  padding: 8px;
+  margin-top: 8px;
+}
+.chart-canvas {
+  width: 100%;
+  height: 220px;
+}
+.update-indicator {
+  font-size: 10px;
+  text-align: right;
+  margin-top: 4px;
+  color: #000;
+}
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .stats-controls {
+    flex-direction: column;
+  }
+}
+#keys-table td {
+  vertical-align: middle;
+  height: 40px;
+  padding: 4px;
+}
+#keys-table td form {
+  margin: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+#keys-table td button {
+  padding: 3px 10px;
+  font-size: 10px;
+  margin: 0;
+  min-width: 60px;
+}
+</style>
+
 <h2>API Keys Management</h2>
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
   <span class="user-badge">{{.Email}}</span>
@@ -101,41 +240,384 @@ func (s *Server) HandleGETKeys(w http.ResponseWriter, r *http.Request) {
 
 <h3>Your Keys ({{.ActiveCount}} active / {{.MaxKeysPerUser}} max)</h3>
 {{if .Keys}}
-<table>
-  <tr>
-    <th>Key ID</th>
-    <th>Created</th>
-    <th>Expires</th>
-    <th>Status</th>
-    <th>Actions</th>
-  </tr>
-  {{range .Keys}}
-  <tr>
-    <td><code>{{.KID}}</code></td>
-    <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
-    <td>{{if .ExpiresAt}}{{.ExpiresAt}}{{else}}<em>Never</em>{{end}}</td>
-    <td>{{if .Revoked}}<span style="color: #e74c3c;">Revoked</span>{{else}}<span style="color: #27ae60;">Active</span>{{end}}</td>
-    <td>
-      {{if not .Revoked}}
-      <form method="post" action="/keys/revoke" class="form-inline">
-        <input type="hidden" name="kid" value="{{.KID}}">
-        <button type="submit" class="danger">Revoke</button>
-      </form>
-      <form method="post" action="/keys/expire" class="form-inline">
-        <input type="hidden" name="kid" value="{{.KID}}">
-        <input type="date" name="expiry" style="width: 140px;">
-        <button type="submit" class="secondary">Set Expiry</button>
-      </form>
+<div id="keys-container">
+  <table id="keys-table" style="table-layout: fixed;">
+    <thead>
+      <tr>
+        <th>Key ID</th>
+        <th>Created</th>
+        <th>Expires</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="keys-tbody">
+      {{range .Keys}}
+      <tr data-revoked="{{.Revoked}}" data-expired="{{if .ExpiresAt}}{{if .Expired}}true{{else}}false{{end}}{{else}}false{{end}}">
+        <td><code>{{.KID}}</code></td>
+        <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td>{{if .ExpiresAt}}{{.ExpiresAt}}{{else}}<em>Never</em>{{end}}</td>
+        <td>{{if .Revoked}}<span style="color: #e74c3c;">Revoked</span>{{else if .Expired}}<span style="color: #e67e22;">Expired</span>{{else}}<span style="color: #27ae60;">Active</span>{{end}}</td>
+        <td>
+          {{if not .Revoked}}
+          <form method="post" action="/keys/revoke" class="form-inline">
+            <input type="hidden" name="kid" value="{{.KID}}">
+            <button type="submit" class="danger">Revoke</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
       {{end}}
-    </td>
-  </tr>
-  {{end}}
-</table>
+    </tbody>
+  </table>
+
+  <div id="pagination" style="margin-top: 12px; text-align: center; min-height: 35px; display: flex; justify-content: center; align-items: flex-start;"></div>
+</div>
+
+<div style="margin-top: 12px; margin-bottom: 12px;">
+  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+    <input type="checkbox" id="show-revoked" style="width: auto; margin: 0;">
+    <span>Show expired/revoked keys</span>
+  </label>
+</div>
+
 {{else}}
 <p style="text-align: center; color: #999; padding: 1.5rem;">
   No API keys yet. Create one above to get started.
 </p>
 {{end}}
+
+<script>
+// Pagination and filtering for API keys
+const KEYS_PER_PAGE = 5;
+let currentPage = 1;
+let showRevoked = false;
+
+function filterAndPaginateKeys() {
+  const tbody = document.getElementById('keys-tbody');
+  if (!tbody) return;
+  
+  const rows = Array.from(tbody.querySelectorAll('tr:not(.placeholder-row)'));
+  
+  // Filter rows based on revoked/expired status
+  const filteredRows = rows.filter(row => {
+    const isRevoked = row.dataset.revoked === 'true';
+    const isExpired = row.dataset.expired === 'true';
+    return showRevoked || (!isRevoked && !isExpired);
+  });
+  
+  // Hide all rows first
+  rows.forEach(row => row.style.display = 'none');
+  
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredRows.length / KEYS_PER_PAGE);
+  const startIdx = (currentPage - 1) * KEYS_PER_PAGE;
+  const endIdx = startIdx + KEYS_PER_PAGE;
+  
+  // Show only the current page
+  const visibleRows = filteredRows.slice(startIdx, endIdx);
+  visibleRows.forEach(row => row.style.display = '');
+  
+  // Add placeholder rows to maintain height
+  const placeholdersNeeded = KEYS_PER_PAGE - visibleRows.length;
+  
+  // Remove existing placeholders
+  tbody.querySelectorAll('.placeholder-row').forEach(p => p.remove());
+  
+  // Add new placeholders if needed
+  for (let i = 0; i < placeholdersNeeded; i++) {
+    const placeholder = document.createElement('tr');
+    placeholder.className = 'placeholder-row';
+    placeholder.innerHTML = '<td colspan="5" style="height: 40px; border: none; background: transparent;"></td>';
+    tbody.appendChild(placeholder);
+  }
+  
+  // Update pagination controls
+  updatePagination(totalPages, filteredRows.length);
+}
+
+function updatePagination(totalPages, totalKeys) {
+  const pagination = document.getElementById('pagination');
+  if (!pagination) return;
+  
+  if (totalKeys === 0) {
+    pagination.innerHTML = '<p style="color: #808080; margin: 0;">No keys to display</p>';
+    return;
+  }
+  
+  if (totalPages <= 1) {
+    pagination.innerHTML = '<div style="height: 26px;"></div>'; // Reserve space even when no pagination
+    return;
+  }
+  
+  let html = '<div style="display: flex; gap: 4px; align-items: center; height: 26px;">';
+  
+  // Previous button
+  if (currentPage > 1) {
+    html += '<button onclick="goToPage(' + (currentPage - 1) + ')">Previous</button>';
+  } else {
+    html += '<button disabled style="visibility: hidden;">Previous</button>';
+  }
+  
+  // Page numbers - show max 7 buttons with ellipsis
+  const maxButtons = 7;
+  if (totalPages <= maxButtons) {
+    // Show all pages
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === currentPage) {
+        html += '<button class="active" style="font-weight: bold;">' + i + '</button>';
+      } else {
+        html += '<button onclick="goToPage(' + i + ')">' + i + '</button>';
+      }
+    }
+  } else {
+    // Show first, last, and pages around current
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+        if (i === currentPage) {
+          html += '<button class="active" style="font-weight: bold;">' + i + '</button>';
+        } else {
+          html += '<button onclick="goToPage(' + i + ')">' + i + '</button>';
+        }
+      } else if (i === currentPage - 2 || i === currentPage + 2) {
+        html += '<span style="padding: 4px 8px;">...</span>';
+      }
+    }
+  }
+  
+  // Next button
+  if (currentPage < totalPages) {
+    html += '<button onclick="goToPage(' + (currentPage + 1) + ')">Next</button>';
+  } else {
+    html += '<button disabled style="visibility: hidden;">Next</button>';
+  }
+  
+  html += '</div>';
+  pagination.innerHTML = html;
+}
+
+function goToPage(page) {
+  currentPage = page;
+  filterAndPaginateKeys();
+}
+
+// Toggle revoked keys
+document.addEventListener('DOMContentLoaded', function() {
+  const checkbox = document.getElementById('show-revoked');
+  if (checkbox) {
+    checkbox.addEventListener('change', function() {
+      showRevoked = this.checked;
+      currentPage = 1; // Reset to first page
+      filterAndPaginateKeys();
+    });
+    
+    // Initial filter and pagination
+    filterAndPaginateKeys();
+  }
+});
+</script>
+
+<div class="stats-widget" style="margin-top: 2rem;">
+  <h3>Usage Statistics</h3>
+  <div class="stats-controls">
+    <div class="control-group">
+      <span class="control-label">Filter:</span>
+      <div class="stats-filter">
+        <button onclick="setFilter('overall')" id="filter-overall" class="active">Overall</button>
+        <button onclick="setFilter('keys')" id="filter-keys">My Keys</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Timeframe:</span>
+      <div class="stats-timeframe">
+        <button onclick="setTimeframe('hour')" id="btn-hour">Hour</button>
+        <button onclick="setTimeframe('day')" id="btn-day" class="active">Day</button>
+        <button onclick="setTimeframe('week')" id="btn-week">Week</button>
+        <button onclick="setTimeframe('month')" id="btn-month">Month</button>
+        <button onclick="setTimeframe('year')" id="btn-year">Year</button>
+      </div>
+    </div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-value" id="stat-wallets">-</div>
+      <div class="stat-label">Wallets Checked</div>
+    </div>
+  </div>
+  <div class="chart-container">
+    <canvas id="stats-chart" class="chart-canvas"></canvas>
+  </div>
+  <div class="update-indicator" id="update-time">Loading...</div>
+</div>
+
+<script>
+// Load saved preferences or use defaults
+let currentTimeframe = localStorage.getItem('dogelytics_timeframe') || 'day';
+let currentFilter = localStorage.getItem('dogelytics_filter') || 'overall';
+let updateInterval;
+let chart = null;
+
+function setTimeframe(timeframe) {
+  currentTimeframe = timeframe;
+  localStorage.setItem('dogelytics_timeframe', timeframe);
+  document.querySelectorAll('.stats-timeframe button').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('btn-' + timeframe).classList.add('active');
+  loadStats();
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  localStorage.setItem('dogelytics_filter', filter);
+  document.querySelectorAll('.stats-filter button').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('filter-' + filter).classList.add('active');
+  loadStats();
+}
+
+// Restore active states on page load
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.stats-timeframe button').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('btn-' + currentTimeframe).classList.add('active');
+  document.querySelectorAll('.stats-filter button').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('filter-' + currentFilter).classList.add('active');
+});
+
+function loadStats() {
+  const filterParam = currentFilter === 'overall' ? '' : '&filter=' + currentFilter;
+  
+  // Load summary stats
+  fetch('/api/stats/usage?timeframe=' + currentTimeframe + filterParam)
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('stat-wallets').textContent = data.wallets_checked.toLocaleString();
+      document.getElementById('update-time').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    })
+    .catch(error => {
+      console.error('Error loading stats:', error);
+      document.getElementById('stat-wallets').textContent = 'Error';
+    });
+  
+  // Load time series data for chart
+  fetch('/api/stats/timeseries?timeframe=' + currentTimeframe + filterParam)
+    .then(response => response.json())
+    .then(data => {
+      updateChart(data);
+    })
+    .catch(error => {
+      console.error('Error loading time series:', error);
+    });
+}
+
+function updateChart(data) {
+  const canvas = document.getElementById('stats-chart');
+  const ctx = canvas.getContext('2d');
+  
+  // Set canvas size
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 220;
+  
+  if (!data || data.length === 0) {
+    ctx.fillStyle = '#808080';
+    ctx.font = '11px "MS Sans Serif", Tahoma, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data available', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+  
+  // Helper function to calculate nice rounded max value
+  function getNiceMax(value) {
+    if (value === 0) return 10;
+    
+    const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+    const normalized = value / magnitude;
+    
+    let nice;
+    if (normalized <= 1) nice = 1;
+    else if (normalized <= 2) nice = 2;
+    else if (normalized <= 5) nice = 5;
+    else nice = 10;
+    
+    return nice * magnitude;
+  }
+  
+  // Helper function to format Y-axis labels
+  function formatYLabel(value) {
+    if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return value.toString();
+  }
+  
+  // Extract data
+  const wallets = data.map(d => d.wallets_checked);
+  
+  // Find max value for scaling
+  const dataMax = Math.max(...wallets, 1);
+  const maxValue = getNiceMax(dataMax);
+  
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw grid and Y-axis labels (Windows 95 style)
+  const leftPadding = 45;
+  const rightPadding = 10;
+  const topPadding = 15;
+  const bottomPadding = 15;
+  
+  ctx.strokeStyle = '#c0c0c0';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#000';
+  ctx.font = '10px "MS Sans Serif", Tahoma, Arial, sans-serif';
+  ctx.textAlign = 'right';
+  
+  for (let i = 0; i <= 4; i++) {
+    const y = topPadding + ((canvas.height - topPadding - bottomPadding) / 4) * i;
+    const value = maxValue * (1 - i / 4);
+    
+    // Draw grid line
+    ctx.beginPath();
+    ctx.moveTo(leftPadding, y);
+    ctx.lineTo(canvas.width - rightPadding, y);
+    ctx.stroke();
+    
+    // Draw Y-axis label
+    ctx.fillText(formatYLabel(value), leftPadding - 5, y + 4);
+  }
+  
+  // Draw line
+  const chartWidth = canvas.width - leftPadding - rightPadding;
+  const chartHeight = canvas.height - topPadding - bottomPadding;
+  const pointSpacing = chartWidth / Math.max(data.length - 1, 1);
+  
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  let started = false;
+  wallets.forEach((value, index) => {
+    const x = leftPadding + index * pointSpacing;
+    const y = topPadding + chartHeight - (value / maxValue) * chartHeight;
+    if (!started) {
+      ctx.moveTo(x, y);
+      started = true;
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.stroke();
+}
+
+// Load initial stats
+loadStats();
+
+// Auto-refresh every 3 seconds
+updateInterval = setInterval(loadStats, 3000);
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  if (updateInterval) {
+    clearInterval(updateInterval);
+  }
+});
+</script>
+
 ` + htmlFooter))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = t.Execute(w, data)

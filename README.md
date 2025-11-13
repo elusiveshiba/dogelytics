@@ -7,18 +7,20 @@ A lightweight REST API service that provides Dogecoin wallet balance information
 - Go 1.21 or later
 - **PostgreSQL database** (shared with [Dogecoin Indexer](https://github.com/dogeorg/indexer))
   - **PostgreSQL is required** - SQLite is not supported due to concurrent access issues
-  - The indexer must be configured to use PostgreSQL (see [docker/indexer](../docker/indexer/))
-  - Dogelytics connects to the same Postgres database as the indexer for read-only queries
+  - indexer must be configured to use PostgreSQL (see [docker/indexer](../docker/indexer/))
+  - Dogelytics connects to the same Postgres database as indexer for read-only queries
 
 ## Features
 
 - **Balance Queries**: Get incoming, available, outgoing, and current balance for any Dogecoin address
-- **Health Checks**: Monitor the indexer's status and current block height
-- **Rate Limiting**: Per-IP rate limiting to prevent abuse (configurable, per-minute basis)
+- **Health Checks**: Monitor indexer's status and current block height
+- **Rate Limiting**: Per-IP and per-API key rate limiting to prevent abuse
+- **API Key Management**: Secure user accounts with API key generation and management
+- **Usage Statistics**: Real-time usage tracking with interactive charts and filtering
 - **CORS Support**: Configurable CORS headers for browser-based applications
 - **Read-Only Database Access**: Direct Postgres queries with concurrent read support
-- **Address Validation**: Validates Dogecoin addresses before querying
 - **Lightweight**: Minimal overhead, optimized for high-traffic scenarios
+- **Windows 95 Theme**: Full retro aesthetic with classic teal background and gray windows
 
 ## Installation
 
@@ -29,7 +31,7 @@ go mod download
 
 ## Quick Start
 
-**Important**: Ensure the indexer is running with PostgreSQL before starting dogelytics.
+**Important**: Ensure indexer is running with PostgreSQL before starting dogelytics.
 
 ### Run with default settings
 
@@ -164,38 +166,65 @@ curl "http://localhost:4420/health"
 
 ## Rate Limiting
 
-Dogelytics includes built-in rate limiting to protect against abuse and ensure fair usage. The rate limiter tracks requests per IP address within a rolling 1-minute window.
+Dogelytics includes built-in rate limiting to protect against abuse and ensure fair usage.
+
+**Rate Limits:**
+- **Without API Key**: 10 requests per IP per minute
+- **With API Key**: 120 requests per API key per minute
+
+**Getting an API key significantly increases your rate limit** - register at `/register` and generate a key at `/keys` to get 12x more requests per minute.
 
 **Features:**
-- Per-IP rate limiting with configurable maximum requests per minute
+- Dual-layer rate limiting (per-IP and per-API key)
 - Automatic cleanup of expired rate limit entries
 - Support for proxy headers (`X-Forwarded-For`, `X-Real-IP`) to identify real client IPs
 - Rate limiting can be disabled by setting `-ratelimit=0`
 
-**Default:** 60 requests per IP per minute
-
 When a client exceeds the rate limit, they will receive an HTTP 429 (Too Many Requests) response with details about the limit.
 
-## Architecture
+## Web UI
 
-**Why PostgreSQL is Required:**
-- **Concurrent Access**: PostgreSQL's MVCC (Multi-Version Concurrency Control) allows dogelytics to query the database while the indexer writes to it without conflicts
-- **Performance**: Optimized for high-concurrency read/write workloads
-- **Reliability**: Production-grade database with proper transaction isolation
-- **No Locking**: Unlike SQLite, Postgres won't throw database-locked errors under concurrent access
+Dogelytics includes a web interface accessible at `http://localhost:4420` with a classic Windows 95 theme.
 
-**Architecture Diagram:**
-```
-Dogecoin Core → Indexer (writes) → PostgreSQL
-                                        ↓
-                          Dogelytics (reads) → Users/Apps
-```
+### User Authentication
 
-Both indexer and dogelytics connect to the same PostgreSQL database. The indexer writes new blocks and updates UTXOs, while dogelytics performs read-only queries for balance information.
+- Login/registration at `/login` and `/register`
+- Session-based authentication with secure password hashing
+- API key management interface at `/keys`
+
+### API Key Management
+
+Navigate to `/keys` after logging in to:
+- **Generate API Keys**: Create new keys with optional expiry dates
+- **View Active Keys**: See your currently active keys (revoked/expired keys hidden by default)
+- **Revoke Keys**: Instantly revoke compromised keys
+
+Key limits are configurable per user (default: 5 keys maximum).
+
+### Usage Statistics
+
+The usage statistics widget shows real-time analytics with:
+
+- **Wallets Checked**: Total number of balance queries over time
+- **Interactive Chart**: Line chart with dynamic Y-axis scaling and smart value formatting (k/M notation)
+- **Auto-Refresh**: Updates every 3 seconds for live monitoring
+
+#### Filter Options
+
+- **Overall**: All server usage (everyone's wallet checks)
+- **My Keys**: Usage from only your API keys
+
+#### Timeframes
+
+- **Hour**: Last 60 minutes (1-minute intervals)
+- **Day**: Last 24 hours (1-hour intervals) - *default*
+- **Week**: Last 7 days (6-hour intervals)
+- **Month**: Last 30 days (1-day intervals)
+- **Year**: Last 365 days (1-week intervals)
 
 ## Docker Deployment
 
-See [docker/dogelytics](../docker/dogelytics/) for containerized deployment with Docker Compose.
+See [dogecoinfoundation/docker](https://github.com/dogecoinfoundation/docker) for containerized deployment with Docker Compose.
 
 The Docker setup automatically:
 - Connects to the indexer's PostgreSQL database

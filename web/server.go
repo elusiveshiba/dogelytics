@@ -120,9 +120,23 @@ func (server *Server) HandleBalance(writer http.ResponseWriter, request *http.Re
 	storeWithCtx := server.store.WithCtx(request.Context())
 	balance, err := storeWithCtx.GetBalance(kind, hash, server.config.Confirmations)
 	if err != nil {
+		// Log failed request
+		apiKey := ""
+		if k, ok := getAPIKey(request.Context()); ok {
+			apiKey = k.KID
+		}
+		_ = storeWithCtx.LogRequest(clientIP, apiKey, address, false)
+
 		server.sendError(writer, http.StatusInternalServerError, "database-error", fmt.Sprintf("Failed to get balance: %v", err))
 		return
 	}
+
+	// Log successful request
+	apiKey := ""
+	if k, ok := getAPIKey(request.Context()); ok {
+		apiKey = k.KID
+	}
+	_ = storeWithCtx.LogRequest(clientIP, apiKey, address, true)
 
 	// Calculate current balance
 	balance.Current = balance.Available + balance.Incoming
@@ -213,6 +227,112 @@ func (server *Server) sendError(writer http.ResponseWriter, status int, errorTyp
 		Message: message,
 	}
 	server.sendJSON(writer, status, response)
+}
+
+// HandleUsageStats returns usage statistics for a given timeframe
+func (server *Server) HandleUsageStats(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get timeframe parameter (defaults to 24 hours)
+	timeframe := request.URL.Query().Get("timeframe")
+	hours := 24 // default
+
+	switch timeframe {
+	case "hour":
+		hours = 1
+	case "day":
+		hours = 24
+	case "week":
+		hours = 168
+	case "month":
+		hours = 720
+	case "year":
+		hours = 8760
+	}
+
+	// Get filter parameters
+	filterType := request.URL.Query().Get("filter")
+	var filterValues []string
+
+	// Determine filter value based on filter type
+	if filterType == "keys" {
+		// Get all user's active API keys
+		if u, ok := server.getUserFromRequest(request); ok {
+			keys, err := server.store.GetAPIKeysByUserID(u.ID)
+			if err == nil && len(keys) > 0 {
+				for _, k := range keys {
+					if !k.RevokedAt.Valid {
+						filterValues = append(filterValues, k.KID)
+					}
+				}
+			}
+		}
+	}
+
+	stats, err := server.store.GetUsageStats(hours, filterType, filterValues)
+	if err != nil {
+		log.Printf("[Dogelytics] Error getting usage stats: %v", err)
+		http.Error(writer, "Failed to get stats", http.StatusInternalServerError)
+		return
+	}
+
+	server.sendJSON(writer, http.StatusOK, stats)
+}
+
+// HandleUsageTimeSeries returns time-series data for charts
+func (server *Server) HandleUsageTimeSeries(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get timeframe parameter (defaults to 24 hours)
+	timeframe := request.URL.Query().Get("timeframe")
+	hours := 24 // default
+
+	switch timeframe {
+	case "hour":
+		hours = 1
+	case "day":
+		hours = 24
+	case "week":
+		hours = 168
+	case "month":
+		hours = 720
+	case "year":
+		hours = 8760
+	}
+
+	// Get filter parameters
+	filterType := request.URL.Query().Get("filter")
+	var filterValues []string
+
+	// Determine filter value based on filter type
+	if filterType == "keys" {
+		// Get all user's active API keys
+		if u, ok := server.getUserFromRequest(request); ok {
+			keys, err := server.store.GetAPIKeysByUserID(u.ID)
+			if err == nil && len(keys) > 0 {
+				for _, k := range keys {
+					if !k.RevokedAt.Valid {
+						filterValues = append(filterValues, k.KID)
+					}
+				}
+			}
+		}
+	}
+
+	series, err := server.store.GetUsageTimeSeries(hours, filterType, filterValues)
+	if err != nil {
+		log.Printf("[Dogelytics] Error getting usage time series: %v", err)
+		http.Error(writer, "Failed to get time series", http.StatusInternalServerError)
+		return
+	}
+
+	server.sendJSON(writer, http.StatusOK, series)
 }
 
 // scriptTypeFromVersionByte converts an address version byte to a script type

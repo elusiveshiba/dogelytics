@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -216,6 +217,244 @@ func (s *Store) UpdateAPIKeyExpiry(userID string, kid string, expiresAt *time.Ti
 		return fmt.Errorf("update api key expiry: %w", err)
 	}
 	return nil
+}
+
+// GetTotalUsers returns the total number of registered users
+func (s *Store) GetTotalUsers() (int, error) {
+	var count int
+	err := s.db.QueryRowContext(s.ctx, "SELECT COUNT(*) FROM dogelytics_users").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("get total users: %w", err)
+	}
+	return count, nil
+}
+
+// GetTotalAPIKeys returns the total number of API keys (including revoked/expired)
+func (s *Store) GetTotalAPIKeys() (int, error) {
+	var count int
+	err := s.db.QueryRowContext(s.ctx, "SELECT COUNT(*) FROM dogelytics_api_keys").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("get total api keys: %w", err)
+	}
+	return count, nil
+}
+
+// GetActiveAPIKeys returns the number of active API keys (not revoked and not expired)
+func (s *Store) GetActiveAPIKeys() (int, error) {
+	query := `
+		SELECT COUNT(*) FROM dogelytics_api_keys
+		WHERE revoked_at IS NULL
+		AND (expires_at IS NULL OR expires_at > now())
+	`
+	var count int
+	err := s.db.QueryRowContext(s.ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("get active api keys: %w", err)
+	}
+	return count, nil
+}
+
+// GetRevokedAPIKeys returns the number of revoked API keys
+func (s *Store) GetRevokedAPIKeys() (int, error) {
+	query := `SELECT COUNT(*) FROM dogelytics_api_keys WHERE revoked_at IS NOT NULL`
+	var count int
+	err := s.db.QueryRowContext(s.ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("get revoked api keys: %w", err)
+	}
+	return count, nil
+}
+
+// GetExpiredAPIKeys returns the number of expired API keys (not revoked but expired)
+func (s *Store) GetExpiredAPIKeys() (int, error) {
+	query := `
+		SELECT COUNT(*) FROM dogelytics_api_keys
+		WHERE revoked_at IS NULL
+		AND expires_at IS NOT NULL
+		AND expires_at <= now()
+	`
+	var count int
+	err := s.db.QueryRowContext(s.ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("get expired api keys: %w", err)
+	}
+	return count, nil
+}
+
+// EnsureRequestLogsSchema creates the request logs table if it doesn't exist
+func (s *Store) EnsureRequestLogsSchema() error {
+	schema := `
+		CREATE TABLE IF NOT EXISTS dogelytics_request_logs (
+			id SERIAL PRIMARY KEY,
+			timestamp TIMESTAMPTZ NOT NULL DEFAULT now(),
+			client_ip TEXT NOT NULL,
+			api_key TEXT,
+			wallet_address TEXT,
+			success BOOLEAN NOT NULL DEFAULT true
+		);
+		CREATE INDEX IF NOT EXISTS idx_dgl_request_logs_timestamp ON dogelytics_request_logs(timestamp);
+		CREATE INDEX IF NOT EXISTS idx_dgl_request_logs_client_ip ON dogelytics_request_logs(client_ip);
+		CREATE INDEX IF NOT EXISTS idx_dgl_request_logs_api_key ON dogelytics_request_logs(api_key);
+	`
+	_, err := s.db.ExecContext(s.ctx, schema)
+	if err != nil {
+		return fmt.Errorf("ensure request logs schema: %w", err)
+	}
+	return nil
+}
+
+// LogRequest logs an API request
+func (s *Store) LogRequest(clientIP string, apiKey string, walletAddress string, success bool) error {
+	query := `
+		INSERT INTO dogelytics_request_logs (client_ip, api_key, wallet_address, success)
+		VALUES ($1, $2, $3, $4)
+	`
+	_, err := s.db.ExecContext(s.ctx, query, clientIP, apiKey, walletAddress, success)
+	if err != nil {
+		return fmt.Errorf("log request: %w", err)
+	}
+	return nil
+}
+
+// UsageStats holds usage statistics for a time period
+type UsageStats struct {
+	WalletsChecked int `json:"wallets_checked"`
+	UniqueIPs      int `json:"unique_ips"`
+	UniqueKeys     int `json:"unique_keys"`
+}
+
+// TimeSeriesPoint represents a single data point in time
+type TimeSeriesPoint struct {
+	Timestamp      time.Time `json:"timestamp"`
+	WalletsChecked int       `json:"wallets_checked"`
+	UniqueIPs      int       `json:"unique_ips"`
+	UniqueKeys     int       `json:"unique_keys"`
+}
+
+// GetUsageStats returns usage statistics for a given time period
+func (s *Store) GetUsageStats(hours int, filterType string, filterValues []string) (UsageStats, error) {
+	var stats UsageStats
+	var query string
+	var args []interface{}
+	
+	whereClause := "WHERE success = true"
+	argIdx := 1
+	
+	// Add filter conditions
+	if filterType == "keys" && len(filterValues) > 0 {
+		placeholders := make([]string, len(filterValues))
+		for i, val := range filterValues {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, val)
+			argIdx++
+		}
+		whereClause += fmt.Sprintf(" AND api_key IN (%s)", strings.Join(placeholders, ","))
+	}
+	
+	// Specific time period
+	query = fmt.Sprintf(`
+		SELECT 
+			COUNT(*) as wallets_checked,
+			COUNT(DISTINCT client_ip) as unique_ips,
+			COUNT(DISTINCT api_key) FILTER (WHERE api_key IS NOT NULL AND api_key != '') as unique_keys
+		FROM dogelytics_request_logs
+		%s
+		AND timestamp >= now() - interval '1 hour' * $%d
+	`, whereClause, argIdx)
+	args = append(args, hours)
+	
+	err := s.db.QueryRowContext(s.ctx, query, args...).Scan(&stats.WalletsChecked, &stats.UniqueIPs, &stats.UniqueKeys)
+	if err != nil {
+		return stats, fmt.Errorf("get usage stats: %w", err)
+	}
+	
+	return stats, nil
+}
+
+// GetUsageTimeSeries returns time-series data for charts
+func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []string) ([]TimeSeriesPoint, error) {
+	var points []TimeSeriesPoint
+	var query string
+	var args []interface{}
+	var interval string
+	
+	// Determine interval based on timeframe
+	switch hours {
+	case 1: // Hour
+		interval = "1 minute"
+	case 24: // Day
+		interval = "1 hour"
+	case 168: // Week
+		interval = "6 hours"
+	case 720: // Month
+		interval = "1 day"
+	case 8760: // Year
+		interval = "1 week"
+	default:
+		interval = "1 hour"
+	}
+	
+	// Build time series query
+	additionalFilter := ""
+	argIdx := 1
+	
+	// First arg is always hours
+	args = append(args, hours)
+	argIdx++
+	
+	// Add filter if present
+	if filterType == "keys" && len(filterValues) > 0 {
+		placeholders := make([]string, len(filterValues))
+		for i, val := range filterValues {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, val)
+			argIdx++
+		}
+		additionalFilter = fmt.Sprintf("AND r.api_key IN (%s)", strings.Join(placeholders, ","))
+	}
+	
+	query = fmt.Sprintf(`
+		WITH time_series AS (
+			SELECT generate_series(
+				date_trunc('hour', now() - interval '1 hour' * $1),
+				now(),
+				interval '%s'
+			) as time_bucket
+		)
+		SELECT 
+			ts.time_bucket,
+			COALESCE(COUNT(r.*), 0) as wallets_checked,
+			COALESCE(COUNT(DISTINCT r.client_ip), 0) as unique_ips,
+			COALESCE(COUNT(DISTINCT r.api_key) FILTER (WHERE r.api_key IS NOT NULL AND r.api_key != ''), 0) as unique_keys
+		FROM time_series ts
+		LEFT JOIN dogelytics_request_logs r 
+			ON r.timestamp >= ts.time_bucket 
+			AND r.timestamp < ts.time_bucket + interval '%s'
+			AND r.success = true
+			%s
+		GROUP BY ts.time_bucket
+		ORDER BY ts.time_bucket ASC
+	`, interval, interval, additionalFilter)
+	
+	rows, err := s.db.QueryContext(s.ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get usage time series: %w", err)
+	}
+	defer rows.Close()
+	
+	for rows.Next() {
+		var point TimeSeriesPoint
+		if err := rows.Scan(&point.Timestamp, &point.WalletsChecked, &point.UniqueIPs, &point.UniqueKeys); err != nil {
+			return nil, fmt.Errorf("scan time series point: %w", err)
+		}
+		points = append(points, point)
+	}
+	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("time series rows error: %w", err)
+	}
+	
+	return points, nil
 }
 
 

@@ -18,15 +18,6 @@ func withUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, ctxUserIDKey, userID)
 }
 
-func getUserID(ctx context.Context) (string, bool) {
-	v := ctx.Value(ctxUserIDKey)
-	if v == nil {
-		return "", false
-	}
-	id, ok := v.(string)
-	return id, ok
-}
-
 func withAPIKey(ctx context.Context, key store.APIKey) context.Context {
 	return context.WithValue(ctx, ctxAPIKeyKey, key)
 }

@@ -19,9 +19,6 @@ A lightweight REST API service that provides Dogecoin wallet balance information
 - **API Key Management**: Secure user accounts with API key generation and management
 - **Usage Statistics**: Real-time usage tracking with interactive charts and filtering
 - **CORS Support**: Configurable CORS headers for browser-based applications
-- **Read-Only Database Access**: Direct Postgres queries with concurrent read support
-- **Lightweight**: Minimal overhead, optimized for high-traffic scenarios
-- **Windows 95 Theme**: Full retro aesthetic with classic teal background and gray windows
 
 ## Installation
 
@@ -36,7 +33,7 @@ Dogelytics requires a separate dogelytics database for users, API keys, and sess
 
 ### Automated Setup (Recommended)
 
-Use the provided setup script for easy database initialization:
+Use the provided setup script for easy and secure database initialization:
 
 ```bash
 ./scripts/setup-auth-db.sh
@@ -44,21 +41,22 @@ Use the provided setup script for easy database initialization:
 
 This interactive script will:
 - Connect to your PostgreSQL instance
+- **Auto-generate a secure random password** (or let you provide your own)
 - Create the `dogelytics` database
 - Create the `dogelytics` user with proper permissions
 - Output the `DOGELYTICS_DBURL` connection string for your `.env` file
 
 ### Manual Setup
 
-If you prefer manual setup:
+If you prefer manual setup, **use a strong password**:
 
 ```sql
 -- Connect to PostgreSQL as admin
 psql -U postgres
 
--- Create database and user
+-- Create database and user (replace YOUR_SECURE_PASSWORD with a strong password!)
 CREATE DATABASE dogelytics;
-CREATE USER dogelytics WITH PASSWORD 'changeme';
+CREATE USER dogelytics WITH PASSWORD 'YOUR_SECURE_PASSWORD';
 GRANT ALL PRIVILEGES ON DATABASE dogelytics TO dogelytics;
 
 -- Connect to dogelytics database
@@ -70,9 +68,9 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dogelytics;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dogelytics;
 ```
 
-Then add to your `.env`:
+Then add to your `.env` (use the same password you set above):
 ```bash
-DOGELYTICS_INDEXER_DBURL=postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable
+DOGELYTICS_DBURL=postgres://dogelytics:YOUR_SECURE_PASSWORD@localhost:5432/dogelytics?sslmode=disable
 ```
 
 ## Quick Start
@@ -80,27 +78,29 @@ DOGELYTICS_INDEXER_DBURL=postgres://dogelytics:changeme@localhost:5432/dogelytic
 **Important**: 
 1. Ensure indexer is running with PostgreSQL before starting dogelytics
 2. Create the dogelytics database using the setup script or manual steps above
+3. Configure your `.env` file with the database URLs from setup
 
-### Run with default settings
+### Run with `.env` configuration (recommended)
+
+First, ensure your `.env` file is configured:
+
+```bash
+# .env file
+INDEXER_DBURL=postgres://indexer:yourpassword@localhost:5432/indexer?sslmode=disable
+DOGELYTICS_DBURL=postgres://dogelytics:yourpassword@localhost:5432/dogelytics?sslmode=disable
+BIND=localhost:4420
+CONFIRMATIONS=6
+RATELIMIT=10
+API_KEY_RATELIMIT=120
+SESSION_SECRET=your-secret-key-here
+ENABLE_UI=true
+ENABLE_SIGNUPS=false
+```
+
+Then run:
 
 ```bash
 go run ./cmd/dogelytics
-```
-
-This will:
-- Connect to PostgreSQL at `postgres://indexer:changeme@localhost:5432/indexer`
-- Start the HTTP server on `localhost:4420`
-- Enable rate limiting at 60 requests per IP per minute
-
-### Run with custom settings
-
-```bash
-go run ./cmd/dogelytics \
-  -dburl="postgres://indexer:mypassword@localhost:5432/indexer?sslmode=disable" \
-  -bind="localhost:4420" \
-  -confirmations=6 \
-  -cors="*" \
-  -ratelimit=60
 ```
 
 ### Build and run
@@ -109,20 +109,29 @@ go run ./cmd/dogelytics \
 # Compile
 go build -o dogelytics ./cmd/dogelytics
 
-# Run
-./dogelytics -dburl="postgres://indexer:mypassword@localhost:5432/indexer?sslmode=disable"
+# Run (reads from .env automatically)
+./dogelytics
 ```
 
-## Configuration
+### Override with command-line flags (optional)
 
-Dogelytics can be configured via environment variables (recommended) or command-line flags. Environment variables are read from a `.env` file or the shell environment.
+You can override `.env` settings with flags if needed:
+
+```bash
+./dogelytics \
+  -indexer-dburl="postgres://indexer:mypassword@localhost:5432/indexer?sslmode=disable" \
+  -dogelytics-dburl="postgres://dogelytics:mypassword@localhost:5432/dogelytics?sslmode=disable" \
+  -bind="0.0.0.0:4420" \
+  -confirmations=6 \
+  -ratelimit=60
+```
 
 ### Configuration Options
 
 | Environment Variable | Flag | Description | Default |
 |---------------------|------|-------------|---------|
-| `INDEXER_DBURL` | `-dburl` | PostgreSQL database URL for indexer (blockchain data) | `postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable` |
-| `DOGELYTICS_DBURL` | `-auth-dburl` | PostgreSQL database URL for auth (users, API keys, sessions) | `postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable` |
+| `INDEXER_DBURL` | `-indexer-dburl` | PostgreSQL database URL for indexer (blockchain data) | `postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable` |
+| `DOGELYTICS_DBURL` | `-dogelytics-dburl` | PostgreSQL database URL for dogelytics (users, API keys, sessions, logs) | `postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable` |
 | `BIND` | `-bind` | HTTP server bind address | `localhost:4420` |
 | `CORS` | `-cors` | CORS allowed origin (`*` for all) | `*` |
 | `CONFIRMATIONS` | `-confirmations` | Number of confirmations for available balance | `6` |
@@ -133,74 +142,7 @@ Dogelytics can be configured via environment variables (recommended) or command-
 | `ENABLE_UI` | `-enable-ui` | Enable web UI endpoints | `true` |
 | `ENABLE_SIGNUPS` | `-enable-signups` | Enable user registration through UI | `true` |
 
-### Using Environment Variables
-
-Copy `.env.example` to `.env` and customize:
-
-```bash
-cp .env.example .env
-# Edit .env with your preferred settings
-```
-
-Then run dogelytics:
-
-```bash
-go run ./cmd/dogelytics
-```
-
 Environment variables take precedence over defaults, and command-line flags take precedence over environment variables.
-
-### Example Configurations
-
-**Development (local Postgres, UI enabled)**:
-```bash
-# Using environment variables
-export INDEXER_DBURL="postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable"
-export RATELIMIT=0
-export ENABLE_UI=true
-export ENABLE_SIGNUPS=true
-export SESSION_SECRET=$(openssl rand -base64 32)
-go run ./cmd/dogelytics
-
-# Or using command-line flags
-go run ./cmd/dogelytics \
-  -dburl="postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable" \
-  -ratelimit=0 \
-  -enable-ui=true \
-  -enable-signups=true
-```
-
-**Production API-Only (UI disabled, no signups)**:
-```bash
-# .env file
-INDEXER_DBURL=postgres://indexer:securepassword@postgres-host:5432/indexer?sslmode=require
-BIND=0.0.0.0:4420
-CORS=https://mydogeapp.com
-RATELIMIT=100
-API_KEY_RATELIMIT=120
-CONFIRMATIONS=6
-ENABLE_UI=false
-ENABLE_SIGNUPS=false
-
-# Run
-./dogelytics
-```
-
-**Production with UI (signups disabled for security)**:
-```bash
-# .env file
-INDEXER_DBURL=postgres://indexer:password@postgres:5432/indexer?sslmode=require
-BIND=0.0.0.0:4420
-CORS=*
-RATELIMIT=10
-API_KEY_RATELIMIT=120
-SESSION_SECRET=your-secure-random-string-here
-ENABLE_UI=true
-ENABLE_SIGNUPS=false  # Only admins can create users via CLI
-
-# Run
-./dogelytics
-```
 
 ## API Endpoints
 
@@ -263,19 +205,11 @@ curl "http://localhost:4420/health"
 
 ## Rate Limiting
 
-Dogelytics includes built-in rate limiting to protect against abuse and ensure fair usage.
+Dogelytics includes built-in rate limiting.
 
-**Rate Limits:**
+**Default Rate Limits:**
 - **Without API Key**: 10 requests per IP per minute
 - **With API Key**: 120 requests per API key per minute
-
-**Getting an API key significantly increases your rate limit** - register at `/register` and generate a key at `/keys` to get 12x more requests per minute.
-
-**Features:**
-- Dual-layer rate limiting (per-IP and per-API key)
-- Automatic cleanup of expired rate limit entries
-- Support for proxy headers (`X-Forwarded-For`, `X-Real-IP`) to identify real client IPs
-- Rate limiting can be disabled by setting `-ratelimit=0`
 
 When a client exceeds the rate limit, they will receive an HTTP 429 (Too Many Requests) response with details about the limit.
 
@@ -287,7 +221,7 @@ Dogelytics includes an optional web interface accessible at `http://localhost:44
 
 ### Controlling Access
 
-- **`ENABLE_UI`**: Set to `false` to disable all web UI endpoints. When disabled, only API endpoints (`/balance`, `/health`) are available.
+- **`ENABLE_UI`**: Set to `false` to disable all web UI endpoints. When disabled, only API endpoints are available.
 - **`ENABLE_SIGNUPS`**: Set to `false` to disable user registration through the web UI. When disabled, new users must be created using the admin CLI tool (see [Admin CLI](#admin-cli) below).
 
 ### User Authentication
@@ -311,7 +245,7 @@ Key limits are configurable per user (default: 5 keys maximum).
 The usage statistics widget shows real-time analytics with:
 
 - **Wallets Checked**: Total number of balance queries over time
-- **Interactive Chart**: Line chart with dynamic Y-axis scaling and smart value formatting (k/M notation)
+- **Interactive Chart**: Line chart with dynamic Y-axis scaling
 - **Auto-Refresh**: Updates every 3 seconds for live monitoring
 
 #### Filter Options
@@ -373,17 +307,20 @@ The secret will be displayed only once. Save it securely.
 ./admin list-keys --email user@example.com
 ```
 
+**Note:** This will not print the actual API key secrets (which are only shown once at creation), just the key metadata (Key ID, creation date, expiration date, and status). 
+
 ### Admin CLI Configuration
 
-The admin tool uses the same configuration as the main application. Set the database URL via environment variable or flag:
+The admin tool only needs access to the dogelytics database (for users and API keys). Set the database URL via environment variable or flag:
 
 ```bash
 # Using environment variable
-export INDEXER_DBURL="postgres://indexer:password@localhost:5432/indexer?sslmode=disable"
+export DOGELYTICS_DBURL="postgres://dogelytics:password@localhost:5432/dogelytics?sslmode=disable"
 ./admin create-user --email admin@example.com --password securepass123
 
 # Using flag
-./admin create-user --email admin@example.com --password securepass123 -dburl="postgres://..."
+./admin create-user --email admin@example.com --password securepass123 \
+  -dogelytics-dburl="postgres://dogelytics:password@localhost:5432/dogelytics?sslmode=disable"
 ```
 
 ## Docker Deployment
@@ -404,13 +341,11 @@ When deploying with Docker, you can:
 
 For production deployments:
 
-1. **Disable Public Signups**: Set `ENABLE_SIGNUPS=false` to prevent unauthorized user registration
+1. **Consider Disabling Public Signups**: Unless you want to allow others to sign up for your servlce, set `ENABLE_SIGNUPS=false` to prevent unauthorized user registration
 2. **Generate Strong Session Secret**: Use `openssl rand -base64 32` to generate a secure `SESSION_SECRET`
-3. **Use TLS**: Deploy behind a reverse proxy (nginx, Caddy) with TLS/HTTPS enabled
 4. **Limit API Access**: Set appropriate rate limits (`RATELIMIT` and `API_KEY_RATELIMIT`)
 5. **Restrict CORS**: Set `CORS` to specific domains instead of `*` in production
 6. **Secure Database**: Use strong passwords and `sslmode=require` for PostgreSQL connections
-7. **Admin CLI**: Use the admin CLI tool to manually vet and create user accounts
 
 ## License
 

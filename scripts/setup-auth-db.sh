@@ -15,7 +15,9 @@ DEFAULT_PORT="5432"
 DEFAULT_ADMIN_USER="postgres"
 DEFAULT_DB_USER="dogelytics"
 DEFAULT_DB_NAME="dogelytics"
-DEFAULT_DB_PASSWORD="changeme"
+
+# Generate a secure random password (20 chars, alphanumeric)
+GENERATED_PASSWORD=$(openssl rand -base64 15 | tr -d "=+/" | cut -c1-20)
 
 # Prompt for PostgreSQL connection details
 read -p "PostgreSQL host [${DEFAULT_HOST}]: " POSTGRES_HOST
@@ -38,9 +40,19 @@ DB_NAME=${DB_NAME:-$DEFAULT_DB_NAME}
 read -p "Dogelytics database user [${DEFAULT_DB_USER}]: " DB_USER
 DB_USER=${DB_USER:-$DEFAULT_DB_USER}
 
-read -sp "Dogelytics database password [${DEFAULT_DB_PASSWORD}]: " DB_PASSWORD
-DB_PASSWORD=${DB_PASSWORD:-$DEFAULT_DB_PASSWORD}
 echo ""
+echo "A secure random password has been generated for the database user."
+echo "Generated password: ${GENERATED_PASSWORD}"
+echo ""
+read -p "Press Enter to use the generated password, or type a custom password: " CUSTOM_PASSWORD
+
+if [ -z "$CUSTOM_PASSWORD" ]; then
+    DB_PASSWORD="${GENERATED_PASSWORD}"
+    echo "✓ Using generated password"
+else
+    DB_PASSWORD="${CUSTOM_PASSWORD}"
+    echo "✓ Using custom password"
+fi
 echo ""
 
 echo "Setting up database with the following configuration:"
@@ -115,7 +127,7 @@ EOF
 echo "✓ Privileges granted"
 
 # Generate connection string
-DOGELYTICS_INDEXER_DBURL="postgres://${DB_USER}:${DB_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${DB_NAME}?sslmode=disable"
+DOGELYTICS_DBURL="postgres://${DB_USER}:${DB_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${DB_NAME}?sslmode=disable"
 
 echo ""
 echo "==================================="
@@ -124,14 +136,18 @@ echo "==================================="
 echo ""
 echo "Add this to your .env file:"
 echo ""
-echo "DOGELYTICS_INDEXER_DBURL=${DOGELYTICS_DBURL}"
+echo "DOGELYTICS_DBURL=${DOGELYTICS_DBURL}"
+echo ""
+echo "⚠️  IMPORTANT: Save the database password securely!"
+echo "   Database User: ${DB_USER}"
+echo "   Database Password: ${DB_PASSWORD}"
 echo ""
 echo "You can now run dogelytics:"
-echo "  export DOGELYTICS_INDEXER_DBURL='${DOGELYTICS_DBURL}'"
+echo "  export DOGELYTICS_DBURL='${DOGELYTICS_DBURL}'"
 echo "  go run ./cmd/dogelytics"
 echo ""
 echo "Or use the admin CLI:"
-echo "  export DOGELYTICS_INDEXER_DBURL='${DOGELYTICS_DBURL}'"
+echo "  export DOGELYTICS_DBURL='${DOGELYTICS_DBURL}'"
 echo "  go run ./cmd/admin create-user --email admin@example.com --password yourpassword123"
 echo ""
 

@@ -1,4 +1,4 @@
-package web
+package server
 
 // HTML template constants with embedded styles
 const htmlStyles = `

@@ -115,3 +115,8 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// QueryContext executes a query that returns rows
+func (s *Store) QueryContext(query string, args ...interface{}) (*sql.Rows, error) {
+	return s.db.QueryContext(s.ctx, query, args...)
+}
+

@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"html/template"
@@ -17,7 +17,7 @@ func (s *Server) HandleGETKeys(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	keys, err := s.store.GetAPIKeysByUserID(u.ID)
+	keys, err := s.authStore.GetAPIKeysByUserID(u.ID)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -635,7 +635,7 @@ func (s *Server) HandlePOSTCreateKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Enforce per-user limit
-	existing, err := s.store.GetAPIKeysByUserID(u.ID)
+	existing, err := s.authStore.GetAPIKeysByUserID(u.ID)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -697,7 +697,7 @@ func (s *Server) HandlePOSTCreateKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	if _, err := s.store.CreateAPIKey(id, u.ID, kid, secretHash, expiresAt); err != nil {
+	if _, err := s.authStore.CreateAPIKey(id, u.ID, kid, secretHash, expiresAt); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
@@ -750,7 +750,7 @@ func (s *Server) HandlePOSTRevokeKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing kid", http.StatusBadRequest)
 		return
 	}
-	if err := s.store.RevokeAPIKey(u.ID, kid, time.Now()); err != nil {
+	if err := s.authStore.RevokeAPIKey(u.ID, kid, time.Now()); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
@@ -788,7 +788,7 @@ func (s *Server) HandlePOSTExpireKey(w http.ResponseWriter, r *http.Request) {
 		}
 		expiresAt = &e
 	}
-	if err := s.store.UpdateAPIKeyExpiry(u.ID, kid, expiresAt); err != nil {
+	if err := s.authStore.UpdateAPIKeyExpiry(u.ID, kid, expiresAt); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"encoding/json"
@@ -8,25 +8,27 @@ import (
 	"strings"
 
 	"github.com/dogeorg/doge"
-	"github.com/dogeorg/dogelytics/spec"
-	"github.com/dogeorg/dogelytics/store"
+	"github.com/dogeorg/dogelytics/internal/config"
+	"github.com/dogeorg/dogelytics/internal/store"
 )
 
 // Server handles HTTP requests for balance and health endpoints
 type Server struct {
-	store      *store.Store
-	config     *spec.Config
-	ipLimiter  *RateLimiter
-	apiLimiter *RateLimiter
+	indexerStore *store.Store // For blockchain data (balances, blocks)
+	authStore    *store.Store // For auth data (users, API keys, sessions)
+	config       *config.Config
+	ipLimiter    *RateLimiter
+	apiLimiter   *RateLimiter
 }
 
 // NewServer creates a new Server instance
-func NewServer(store *store.Store, config *spec.Config, ipLimiter *RateLimiter, apiLimiter *RateLimiter) *Server {
+func NewServer(indexerStore *store.Store, authStore *store.Store, cfg *config.Config, ipLimiter *RateLimiter, apiLimiter *RateLimiter) *Server {
 	return &Server{
-		store:      store,
-		config:     config,
-		ipLimiter:  ipLimiter,
-		apiLimiter: apiLimiter,
+		indexerStore: indexerStore,
+		authStore:    authStore,
+		config:       cfg,
+		ipLimiter:    ipLimiter,
+		apiLimiter:   apiLimiter,
 	}
 }
 
@@ -45,13 +47,13 @@ func (server *Server) HandleHealth(writer http.ResponseWriter, request *http.Req
 	}
 
 	// Test database connection
-	_, err := server.store.GetResumePoint()
+	_, err := server.indexerStore.GetResumePoint()
 	if err != nil {
 		server.sendError(writer, http.StatusInternalServerError, "database-error", fmt.Sprintf("Database error: %v", err))
 		return
 	}
 
-	height, err := server.store.GetCurrentHeight()
+	height, err := server.indexerStore.GetCurrentHeight()
 	if err != nil {
 		server.sendError(writer, http.StatusInternalServerError, "database-error", fmt.Sprintf("Database error: %v", err))
 		return
@@ -116,33 +118,33 @@ func (server *Server) HandleBalance(writer http.ResponseWriter, request *http.Re
 
 	hash := pubkeyHash[1:]
 
-	// Get balance from database using the store's context
-	storeWithCtx := server.store.WithCtx(request.Context())
-	balance, err := storeWithCtx.GetBalance(kind, hash, server.config.Confirmations)
+	// Get balance from indexer database
+	indexerStoreWithCtx := server.indexerStore.WithCtx(request.Context())
+	balance, err := indexerStoreWithCtx.GetBalance(kind, hash, server.config.Confirmations)
+	
+	// Log request to auth database
+	authStoreWithCtx := server.authStore.WithCtx(request.Context())
+	apiKey := ""
+	if k, ok := getAPIKey(request.Context()); ok {
+		apiKey = k.KID
+	}
+	
 	if err != nil {
 		// Log failed request
-		apiKey := ""
-		if k, ok := getAPIKey(request.Context()); ok {
-			apiKey = k.KID
-		}
-		_ = storeWithCtx.LogRequest(clientIP, apiKey, address, false)
+		_ = authStoreWithCtx.LogRequest(clientIP, apiKey, address, false)
 
 		server.sendError(writer, http.StatusInternalServerError, "database-error", fmt.Sprintf("Failed to get balance: %v", err))
 		return
 	}
 
 	// Log successful request
-	apiKey := ""
-	if k, ok := getAPIKey(request.Context()); ok {
-		apiKey = k.KID
-	}
-	_ = storeWithCtx.LogRequest(clientIP, apiKey, address, true)
+	_ = authStoreWithCtx.LogRequest(clientIP, apiKey, address, true)
 
 	// Calculate current balance
 	balance.Current = balance.Available + balance.Incoming
 
 	// Send response
-	response := spec.BalanceResponse{
+	response := config.BalanceResponse{
 		Incoming:  balance.Incoming,
 		Available: balance.Available,
 		Outgoing:  balance.Outgoing,
@@ -166,7 +168,7 @@ func (server *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFun
 				writer := w
 				writer.Header().Set("Content-Type", "application/json")
 				writer.WriteHeader(http.StatusTooManyRequests)
-				response := spec.ErrorResponse{
+				response := config.ErrorResponse{
 					Error:   "rate-limit-exceeded",
 					Message: fmt.Sprintf("Rate limit exceeded. Maximum %d requests per minute.", server.config.APIKeyRateLimit),
 				}
@@ -183,7 +185,7 @@ func (server *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFun
 				writer := w
 				writer.Header().Set("Content-Type", "application/json")
 				writer.WriteHeader(http.StatusTooManyRequests)
-				response := spec.ErrorResponse{
+				response := config.ErrorResponse{
 					Error:   "rate-limit-exceeded",
 					Message: fmt.Sprintf("Rate limit exceeded. Maximum %d requests per minute.", server.config.RateLimit),
 				}
@@ -222,7 +224,7 @@ func (server *Server) sendJSON(writer http.ResponseWriter, status int, data inte
 
 // sendError sends a JSON error response
 func (server *Server) sendError(writer http.ResponseWriter, status int, errorType string, message string) {
-	response := spec.ErrorResponse{
+	response := config.ErrorResponse{
 		Error:   errorType,
 		Message: message,
 	}
@@ -261,7 +263,7 @@ func (server *Server) HandleUsageStats(writer http.ResponseWriter, request *http
 	if filterType == "keys" {
 		// Get all user's active API keys
 		if u, ok := server.getUserFromRequest(request); ok {
-			keys, err := server.store.GetAPIKeysByUserID(u.ID)
+			keys, err := server.authStore.GetAPIKeysByUserID(u.ID)
 			if err == nil && len(keys) > 0 {
 				for _, k := range keys {
 					if !k.RevokedAt.Valid {
@@ -272,7 +274,7 @@ func (server *Server) HandleUsageStats(writer http.ResponseWriter, request *http
 		}
 	}
 
-	stats, err := server.store.GetUsageStats(hours, filterType, filterValues)
+	stats, err := server.authStore.GetUsageStats(hours, filterType, filterValues)
 	if err != nil {
 		log.Printf("[Dogelytics] Error getting usage stats: %v", err)
 		http.Error(writer, "Failed to get stats", http.StatusInternalServerError)
@@ -314,7 +316,7 @@ func (server *Server) HandleUsageTimeSeries(writer http.ResponseWriter, request 
 	if filterType == "keys" {
 		// Get all user's active API keys
 		if u, ok := server.getUserFromRequest(request); ok {
-			keys, err := server.store.GetAPIKeysByUserID(u.ID)
+			keys, err := server.authStore.GetAPIKeysByUserID(u.ID)
 			if err == nil && len(keys) > 0 {
 				for _, k := range keys {
 					if !k.RevokedAt.Valid {
@@ -325,7 +327,7 @@ func (server *Server) HandleUsageTimeSeries(writer http.ResponseWriter, request 
 		}
 	}
 
-	series, err := server.store.GetUsageTimeSeries(hours, filterType, filterValues)
+	series, err := server.authStore.GetUsageTimeSeries(hours, filterType, filterValues)
 	if err != nil {
 		log.Printf("[Dogelytics] Error getting usage time series: %v", err)
 		http.Error(writer, "Failed to get time series", http.StatusInternalServerError)

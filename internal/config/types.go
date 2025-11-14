@@ -1,4 +1,4 @@
-package spec
+package config
 
 import "github.com/dogeorg/doge/koinu"
 

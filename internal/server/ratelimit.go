@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dogeorg/dogelytics/spec"
+	"github.com/dogeorg/dogelytics/internal/config"
 )
 
 // RateLimiter tracks request counts per IP address
@@ -40,7 +40,7 @@ func NewRateLimiter(requestsPerMinute int) *RateLimiter {
 	return rateLimiter
 }
 
-// cleanup periodically removes expired rate limit entries to prevent memory leaks
+// cleanup periodically removes expired rate limit entries
 func (rateLimiter *RateLimiter) cleanup() {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -96,7 +96,7 @@ func (rateLimiter *RateLimiter) Middleware(next http.HandlerFunc) http.HandlerFu
 			log.Printf("[Dogelytics] Rate limit exceeded for IP: %s", ip)
 			writer.Header().Set("Content-Type", "application/json")
 			writer.WriteHeader(http.StatusTooManyRequests)
-			response := spec.ErrorResponse{
+			response := config.ErrorResponse{
 				Error:   "rate-limit-exceeded",
 				Message: fmt.Sprintf("Rate limit exceeded. Maximum %d requests per minute.", rateLimiter.limit),
 			}

@@ -1,5 +1,6 @@
 # Binaries
 dogelytics
+admin
 *.exe
 *.exe~
 *.dll
@@ -26,4 +27,6 @@ go.work
 .DS_Store
 Thumbs.db
 
-
+# environment variables
+.env
+!.env.example

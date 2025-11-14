@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"crypto/hmac"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dogeorg/dogelytics/store"
+	"github.com/dogeorg/dogelytics/internal/store"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -134,6 +134,15 @@ func (s *Server) HandleGETIndex(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/keys", http.StatusFound)
 		return
 	}
+
+	// Conditionally show register link based on EnableSignups
+	registerLink := ""
+	if s.config.EnableSignups {
+		registerLink = `<div class="links">
+	<a href="/register">Don't have an account? Register</a>
+</div>`
+	}
+
 	renderTemplate(w, htmlHeader+`
 <h1>Dogelytics</h1>
 <p style="text-align: center; font-size: 0.95rem; margin: 0.5rem 0; color: #666;">
@@ -151,14 +160,29 @@ func (s *Server) HandleGETIndex(w http.ResponseWriter, r *http.Request) {
 	</label>
 	<button type="submit">Login</button>
 </form>
-<div class="links">
-	<a href="/register">Don't have an account? Register</a>
-</div>
-`+htmlFooter, nil)
+`+registerLink+htmlFooter, nil)
 }
 
 // HandleGETRegister renders the register form
 func (s *Server) HandleGETRegister(w http.ResponseWriter, r *http.Request) {
+	// Check if signups are enabled
+	if !s.config.EnableSignups {
+		renderTemplate(w, htmlHeader+`
+<h1>Dogelytics</h1>
+<p style="text-align: center; font-size: 0.95rem; margin: 0.5rem 0; color: #666;">
+  Dogecoin balance analytics API
+</p>
+<h2 style="margin-top: 1.5rem;">Registration Disabled</h2>
+<p style="text-align: center; color: #666;">
+  User registration is currently disabled. Please contact an administrator to create an account.
+</p>
+<div class="links">
+	<a href="/">Back to Login</a>
+</div>
+`+htmlFooter, nil)
+		return
+	}
+
 	renderTemplate(w, htmlHeader+`
 <h1>Dogelytics</h1>
 <p style="text-align: center; font-size: 0.95rem; margin: 0.5rem 0; color: #666;">
@@ -184,6 +208,12 @@ func (s *Server) HandleGETRegister(w http.ResponseWriter, r *http.Request) {
 
 // HandlePOSTRegister creates a new user
 func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
+	// Check if signups are enabled
+	if !s.config.EnableSignups {
+		http.Error(w, "registration is disabled", http.StatusForbidden)
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
@@ -195,7 +225,7 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Check if exists
-	if existing, _, err := s.store.GetUserByEmail(email); err != nil {
+	if existing, _, err := s.authStore.GetUserByEmail(email); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	} else if existing.ID != "" {
@@ -213,7 +243,7 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	u, err := s.store.CreateUser(id, email, hash)
+	u, err := s.authStore.CreateUser(id, email, hash)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -240,7 +270,7 @@ func (s *Server) HandlePOSTLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid credentials", http.StatusBadRequest)
 		return
 	}
-	u, hash, err := s.store.GetUserByEmail(email)
+	u, hash, err := s.authStore.GetUserByEmail(email)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -276,7 +306,7 @@ func (s *Server) getUserFromRequest(r *http.Request) (store.User, bool) {
 	if !ok || uid == "" {
 		return store.User{}, false
 	}
-	u, err := s.store.GetUserByID(uid)
+	u, err := s.authStore.GetUserByID(uid)
 	if err != nil || u.ID == "" {
 		return store.User{}, false
 	}

@@ -1,9 +1,9 @@
-package web
+package server
 
 import (
 	"context"
 
-	"github.com/dogeorg/dogelytics/store"
+	"github.com/dogeorg/dogelytics/internal/store"
 )
 
 type ctxKey string
@@ -11,7 +11,6 @@ type ctxKey string
 const (
 	ctxUserIDKey ctxKey = "user_id"
 	ctxAPIKeyKey ctxKey = "api_key"
-	ctxAPIKIDKey ctxKey = "api_kid"
 )
 
 func withUserID(ctx context.Context, userID string) context.Context {

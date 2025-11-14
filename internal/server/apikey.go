@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"net/http"
@@ -50,7 +50,7 @@ func (s *Server) APIKeyAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			next.ServeHTTP(w, r)
 			return
 		}
-		k, err := s.store.GetAPIKeyByKID(kid)
+		k, err := s.authStore.GetAPIKeyByKID(kid)
 		if err != nil || k.ID == "" {
 			next.ServeHTTP(w, r)
 			return

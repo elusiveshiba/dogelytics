@@ -454,15 +454,16 @@ document.addEventListener('DOMContentLoaded', function() {
 // Load saved preferences or use defaults
 let currentTimeframe = localStorage.getItem('dogelytics_timeframe') || 'day';
 let currentFilter = localStorage.getItem('dogelytics_filter') || 'overall';
-let updateInterval;
 let chart = null;
+let refreshTimer = null;
+let refreshInFlight = false;
 
 function setTimeframe(timeframe) {
   currentTimeframe = timeframe;
   localStorage.setItem('dogelytics_timeframe', timeframe);
   document.querySelectorAll('.stats-timeframe button').forEach(btn => btn.classList.remove('active'));
   document.getElementById('btn-' + timeframe).classList.add('active');
-  loadStats();
+  loadStatsOnce();
 }
 
 function setFilter(filter) {
@@ -470,7 +471,7 @@ function setFilter(filter) {
   localStorage.setItem('dogelytics_filter', filter);
   document.querySelectorAll('.stats-filter button').forEach(btn => btn.classList.remove('active'));
   document.getElementById('filter-' + filter).classList.add('active');
-  loadStats();
+  loadStatsOnce();
 }
 
 // Restore active states on page load
@@ -481,30 +482,30 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('filter-' + currentFilter).classList.add('active');
 });
 
-function loadStats() {
+async function loadStatsOnce() {
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+
   const filterParam = currentFilter === 'overall' ? '' : '&filter=' + currentFilter;
   
-  // Load summary stats
-  fetch('/api/stats/usage?timeframe=' + currentTimeframe + filterParam)
-    .then(response => response.json())
-    .then(data => {
-      document.getElementById('stat-wallets').textContent = data.wallets_checked.toLocaleString();
-      document.getElementById('update-time').textContent = 'Updated: ' + new Date().toLocaleTimeString();
-    })
-    .catch(error => {
-      console.error('Error loading stats:', error);
-      document.getElementById('stat-wallets').textContent = 'Error';
-    });
-  
-  // Load time series data for chart
-  fetch('/api/stats/timeseries?timeframe=' + currentTimeframe + filterParam)
-    .then(response => response.json())
-    .then(data => {
-      updateChart(data);
-    })
-    .catch(error => {
-      console.error('Error loading time series:', error);
-    });
+  try {
+    const [usageResp, tsResp] = await Promise.all([
+      fetch('/api/stats/usage?timeframe=' + currentTimeframe + filterParam),
+      fetch('/api/stats/timeseries?timeframe=' + currentTimeframe + filterParam),
+    ]);
+
+    const usage = await usageResp.json();
+    document.getElementById('stat-wallets').textContent = usage.wallets_checked.toLocaleString();
+    document.getElementById('update-time').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+
+    const ts = await tsResp.json();
+    updateChart(ts);
+  } catch (error) {
+    console.error('Error loading stats:', error);
+    document.getElementById('stat-wallets').textContent = 'Error';
+  } finally {
+    refreshInFlight = false;
+  }
 }
 
 function updateChart(data) {
@@ -512,8 +513,12 @@ function updateChart(data) {
   const ctx = canvas.getContext('2d');
   
   // Set canvas size
-  canvas.width = canvas.offsetWidth;
-  canvas.height = 220;
+  // Avoid resizing every refresh (resize triggers expensive reflow + clears state).
+  // If the canvas width changes (responsive layout), we resize on demand.
+  const desiredWidth = canvas.clientWidth || canvas.offsetWidth;
+  const desiredHeight = 220;
+  if (canvas.width !== desiredWidth) canvas.width = desiredWidth;
+  if (canvas.height !== desiredHeight) canvas.height = desiredHeight;
   
   if (!data || data.length === 0) {
     ctx.fillStyle = '#808080';
@@ -546,11 +551,27 @@ function updateChart(data) {
     return value.toString();
   }
   
-  // Extract data
-  const wallets = data.map(d => d.wallets_checked);
-  
-  // Find max value for scaling
-  const dataMax = Math.max(...wallets, 1);
+  // Downsample to keep rendering fast for large timeframes.
+  // Canvas charts don't benefit from thousands of points in a few hundred pixels.
+  let series = data;
+  const MAX_POINTS = 300;
+  if (series.length > MAX_POINTS) {
+    const step = Math.ceil(series.length / MAX_POINTS);
+    const sampled = [];
+    for (let i = 0; i < series.length; i += step) sampled.push(series[i]);
+    const last = series[series.length - 1];
+    if (sampled[sampled.length - 1] !== last) sampled.push(last);
+    series = sampled;
+  }
+
+  // Extract data + max without spreading (spread can be costly for large arrays).
+  const wallets = new Array(series.length);
+  let dataMax = 1;
+  for (let i = 0; i < series.length; i++) {
+    const v = (series[i] && typeof series[i].wallets_checked === 'number') ? series[i].wallets_checked : 0;
+    wallets[i] = v;
+    if (v > dataMax) dataMax = v;
+  }
   const maxValue = getNiceMax(dataMax);
   
   // Clear canvas
@@ -585,7 +606,7 @@ function updateChart(data) {
   // Draw line
   const chartWidth = canvas.width - leftPadding - rightPadding;
   const chartHeight = canvas.height - topPadding - bottomPadding;
-  const pointSpacing = chartWidth / Math.max(data.length - 1, 1);
+  const pointSpacing = chartWidth / Math.max(wallets.length - 1, 1);
   
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 2;
@@ -604,17 +625,22 @@ function updateChart(data) {
   ctx.stroke();
 }
 
-// Load initial stats
-loadStats();
+function startAutoRefresh() {
+  const tick = async () => {
+    if (!document.hidden) {
+      await loadStatsOnce();
+    }
+    refreshTimer = window.setTimeout(tick, 3000);
+  };
+  tick();
+}
 
-// Auto-refresh every 3 seconds
-updateInterval = setInterval(loadStats, 3000);
+// Load initial stats + auto-refresh
+startAutoRefresh();
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
-  if (updateInterval) {
-    clearInterval(updateInterval);
-  }
+  if (refreshTimer) window.clearTimeout(refreshTimer);
 });
 </script>
 

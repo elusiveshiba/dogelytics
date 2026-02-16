@@ -711,7 +711,13 @@ func (s *Server) HandlePOSTCreateKey(w http.ResponseWriter, r *http.Request) {
   Copy it now - it will never be shown again.
 </div>
 
-<div class="token-display">{{.Token}}</div>
+<div class="token-display">
+  <div class="token-display-row">
+    <span id="api-token" class="token-value">{{.Token}}</span>
+    <button type="button" id="copy-token-btn" class="copy-token-btn" aria-label="Copy API key" title="Copy API key">&#128203;</button>
+  </div>
+  <div id="copy-status" class="copy-status" aria-live="polite"></div>
+</div>
 
 <div class="alert">
   <strong>How to use:</strong><br>
@@ -729,6 +735,59 @@ curl -H "Authorization: Bearer {{.Token}}" \
 <div class="links">
   <a href="/keys">Back to API Keys</a>
 </div>
+
+<script>
+  (function() {
+    function copyWithExecCommand(text) {
+      var temp = document.createElement("textarea");
+      temp.value = text;
+      temp.setAttribute("readonly", "");
+      temp.style.position = "absolute";
+      temp.style.left = "-9999px";
+      document.body.appendChild(temp);
+      temp.select();
+      var ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (_) {
+        ok = false;
+      }
+      document.body.removeChild(temp);
+      return ok;
+    }
+
+    var button = document.getElementById("copy-token-btn");
+    var tokenEl = document.getElementById("api-token");
+    var statusEl = document.getElementById("copy-status");
+    if (!button || !tokenEl || !statusEl) {
+      return;
+    }
+    button.addEventListener("click", function() {
+      var token = tokenEl.textContent || "";
+      if (!token) {
+        statusEl.textContent = "No API key to copy.";
+        return;
+      }
+      if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+        if (copyWithExecCommand(token)) {
+          statusEl.textContent = "Copied API key to clipboard.";
+        } else {
+          statusEl.textContent = "Failed to copy API key.";
+        }
+        return;
+      }
+      navigator.clipboard.writeText(token).then(function() {
+        statusEl.textContent = "Copied API key to clipboard.";
+      }).catch(function() {
+        if (copyWithExecCommand(token)) {
+          statusEl.textContent = "Copied API key to clipboard.";
+        } else {
+          statusEl.textContent = "Failed to copy API key.";
+        }
+      });
+    });
+  })();
+</script>
 ` + htmlFooter))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = t.Execute(w, struct{ Token string }{Token: token})

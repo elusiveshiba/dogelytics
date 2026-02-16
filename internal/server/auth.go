@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -52,11 +53,16 @@ func signSession(secret []byte, userID string, exp int64) string {
 }
 
 // setSessionCookie sets the signed session cookie for a user id
-func (s *Server) setSessionCookie(w http.ResponseWriter, userID string) {
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, userID string) {
 	if s.config.SessionSecret == "" {
-		// No session secret configured; skip setting cookie
+		// No session secret configured; skip setting cookie.
+		log.Printf("[Dogelytics][auth] session secret is empty; not setting session cookie for user_id=%s", userID)
 		return
 	}
+
+	// Only set Secure when request arrived over HTTPS (directly or via proxy).
+	secureCookie := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+
 	exp := time.Now().Add(sessionTTL).Unix()
 	sig := signSession([]byte(s.config.SessionSecret), userID, exp)
 	val := fmt.Sprintf("%s|%d|%s", userID, exp, sig)
@@ -65,9 +71,10 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, userID string) {
 		Value:    val,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   !strings.HasPrefix(s.config.BindAddr, "0.0.0.0:"), // best-effort
+		Secure:   secureCookie,
 		SameSite: http.SameSiteLaxMode,
 	})
+	log.Printf("[Dogelytics][auth] session cookie set for user_id=%s secure=%t", userID, secureCookie)
 }
 
 // clearSessionCookie removes the session cookie
@@ -85,16 +92,22 @@ func clearSessionCookie(w http.ResponseWriter) {
 
 // getSessionUserID validates the cookie and returns the user id if present
 func (s *Server) getSessionUserID(r *http.Request) (string, bool) {
+	uid, ok, _ := s.getSessionUserIDWithReason(r)
+	return uid, ok
+}
+
+// getSessionUserIDWithReason validates session cookie and returns a reason on failure.
+func (s *Server) getSessionUserIDWithReason(r *http.Request) (string, bool, string) {
 	if s.config.SessionSecret == "" {
-		return "", false
+		return "", false, "session-secret-empty"
 	}
 	c, err := r.Cookie(sessionCookieName)
 	if err != nil || c.Value == "" {
-		return "", false
+		return "", false, "cookie-missing"
 	}
 	parts := strings.Split(c.Value, "|")
 	if len(parts) != 3 {
-		return "", false
+		return "", false, "cookie-format-invalid"
 	}
 	uid := parts[0]
 	expStr := parts[1]
@@ -102,16 +115,16 @@ func (s *Server) getSessionUserID(r *http.Request) (string, bool) {
 
 	exp, err := parseInt64(expStr)
 	if err != nil {
-		return "", false
+		return "", false, "cookie-exp-invalid"
 	}
 	if time.Now().Unix() > exp {
-		return "", false
+		return "", false, "cookie-expired"
 	}
 	expected := signSession([]byte(s.config.SessionSecret), uid, exp)
 	if !hmac.Equal([]byte(sig), []byte(expected)) {
-		return "", false
+		return "", false, "cookie-signature-invalid"
 	}
-	return uid, true
+	return uid, true, ""
 }
 
 func parseInt64(s string) (int64, error) {
@@ -152,11 +165,11 @@ func (s *Server) HandleGETIndex(w http.ResponseWriter, r *http.Request) {
 <form method="post" action="/login">
 	<label>
 		Email Address
-		<input type="email" name="email" placeholder="your@email.com" required>
+		<input type="email" name="email" placeholder="your@email.com" autocomplete="email" required>
 	</label>
 	<label>
 		Password
-		<input type="password" name="password" placeholder="••••••••••••" required>
+		<input type="password" name="password" placeholder="••••••••••••" autocomplete="current-password" required>
 	</label>
 	<button type="submit">Login</button>
 </form>
@@ -192,11 +205,11 @@ func (s *Server) HandleGETRegister(w http.ResponseWriter, r *http.Request) {
 <form method="post" action="/register">
 	<label>
 		Email Address
-		<input type="email" name="email" placeholder="your@email.com" required>
+		<input type="email" name="email" placeholder="your@email.com" autocomplete="email" required>
 	</label>
 	<label>
 		Password (min 12 characters)
-		<input type="password" name="password" minlength="12" placeholder="••••••••••••" required>
+		<input type="password" name="password" minlength="12" placeholder="••••••••••••" autocomplete="new-password" required>
 	</label>
 	<button type="submit">Create Account</button>
 </form>
@@ -248,7 +261,8 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.setSessionCookie(w, u.ID)
+	s.setSessionCookie(w, r, u.ID)
+	log.Printf("[Dogelytics][auth] registration success email=%s user_id=%s", email, u.ID)
 	http.Redirect(w, r, "/keys", http.StatusFound)
 }
 
@@ -261,25 +275,30 @@ func (s *Server) HandleGETLogin(w http.ResponseWriter, r *http.Request) {
 // HandlePOSTLogin authenticates a user
 func (s *Server) HandlePOSTLogin(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
+		log.Printf("[Dogelytics][auth] login failed: parse form error: %v", err)
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
 	email := strings.TrimSpace(strings.ToLower(r.Form.Get("email")))
 	password := r.Form.Get("password")
 	if email == "" || password == "" {
+		log.Printf("[Dogelytics][auth] login failed: missing email or password")
 		http.Error(w, "invalid credentials", http.StatusBadRequest)
 		return
 	}
 	u, hash, err := s.authStore.GetUserByEmail(email)
 	if err != nil {
+		log.Printf("[Dogelytics][auth] login failed for email=%s: store error: %v", email, err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	if u.ID == "" || checkPassword(hash, password) != nil {
+		log.Printf("[Dogelytics][auth] login failed for email=%s: invalid credentials", email)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
-	s.setSessionCookie(w, u.ID)
+	s.setSessionCookie(w, r, u.ID)
+	log.Printf("[Dogelytics][auth] login success email=%s user_id=%s", email, u.ID)
 	http.Redirect(w, r, "/keys", http.StatusFound)
 }
 
@@ -292,10 +311,12 @@ func (s *Server) HandlePOSTLogout(w http.ResponseWriter, r *http.Request) {
 // requireLogin ensures the request has a valid session, otherwise redirect
 func (s *Server) RequireLogin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if uid, ok := s.getSessionUserID(r); ok && uid != "" {
+		uid, ok, reason := s.getSessionUserIDWithReason(r)
+		if ok && uid != "" {
 			next.ServeHTTP(w, r.WithContext(withUserID(r.Context(), uid)))
 			return
 		}
+		log.Printf("[Dogelytics][auth] unauthenticated request path=%s reason=%s", r.URL.Path, reason)
 		http.Redirect(w, r, "/login", http.StatusFound)
 	}
 }

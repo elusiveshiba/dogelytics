@@ -230,6 +230,37 @@ const htmlStyles = `
     word-break: break-all;
     color: #000;
   }
+
+  .token-display-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .token-value {
+    flex: 1;
+    min-width: 0;
+    word-break: break-all;
+  }
+
+  .copy-token-btn {
+    flex-shrink: 0;
+    min-width: 28px;
+    padding: 2px 6px;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .copy-token-btn:active {
+    padding: 2px 6px;
+    margin: 0;
+  }
+
+  .copy-status {
+    margin-top: 4px;
+    color: #000080;
+    font-size: 10px;
+  }
   
   .alert {
     background: #ffffe1;

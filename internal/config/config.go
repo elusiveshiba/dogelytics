@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"os"
+	"strings"
 	"strconv"
 )
 
@@ -26,6 +27,45 @@ func getEnv(key, defaultValue string) string {
 		return val
 	}
 	return defaultValue
+}
+
+// loadDotEnvIfPresent loads simple KEY=VALUE pairs from a .env file.
+// Existing environment variables are preserved and not overwritten.
+func loadDotEnvIfPresent(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for _, rawLine := range lines {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "export ") {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		if key == "" {
+			continue
+		}
+
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+
+		value := strings.TrimSpace(parts[1])
+		value = strings.Trim(value, `"'`)
+		_ = os.Setenv(key, value)
+	}
 }
 
 // getEnvBool returns environment variable as bool or default
@@ -62,6 +102,10 @@ func getEnvInt64(key string, defaultValue int64) int64 {
 // Environment variables take precedence over defaults, command-line flags take precedence over env vars
 func ParseConfig() *Config {
 	var config Config
+
+	// Load .env for local development when present.
+	// Existing OS environment variables still take precedence.
+	loadDotEnvIfPresent(".env")
 
 	// Parse environment variables first (as defaults for flags)
 	envIndexerDbURL := getEnv("INDEXER_DBURL", "postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable")

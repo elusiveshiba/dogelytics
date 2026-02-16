@@ -1,9 +1,12 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dogeorg/dogelytics/internal/config"
 )
 
 // parseBearerOrHeader extracts token from Authorization: Bearer or X-Api-Key
@@ -46,26 +49,34 @@ func (s *Server) APIKeyAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 		kid, secret, ok := parseToken(tok)
 		if !ok {
-			// Malformed token; treat as unauthenticated
-			next.ServeHTTP(w, r)
+			sendInvalidAPIKeyError(w)
 			return
 		}
 		k, err := s.authStore.GetAPIKeyByKID(kid)
 		if err != nil || k.ID == "" {
-			next.ServeHTTP(w, r)
+			sendInvalidAPIKeyError(w)
 			return
 		}
 		// Expired or revoked?
 		if (k.ExpiresAt.Valid && time.Now().After(k.ExpiresAt.Time)) || (k.RevokedAt.Valid) {
-			next.ServeHTTP(w, r)
+			sendInvalidAPIKeyError(w)
 			return
 		}
 		// Verify secret
 		if checkPassword(k.SecretHash, secret) != nil {
-			next.ServeHTTP(w, r)
+			sendInvalidAPIKeyError(w)
 			return
 		}
 		ctx := withAPIKey(r.Context(), k)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+func sendInvalidAPIKeyError(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(config.ErrorResponse{
+		Error:   "invalid-api-key",
+		Message: "Invalid, expired, or revoked API key",
+	})
 }

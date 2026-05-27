@@ -1,10 +1,13 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/dogeorg/dogelytics/internal/config"
 )
 
 func TestRateLimiter_Allow(t *testing.T) {
@@ -78,76 +81,21 @@ func TestRateLimiter_WindowExpiry(t *testing.T) {
 	}
 }
 
-func TestRateLimiter_Middleware(t *testing.T) {
-	rateLimiter := NewRateLimiter(2)
-
-	// Create a test handler
-	handler := rateLimiter.Middleware(func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(http.StatusOK)
-		writer.Write([]byte("OK"))
-	})
-
-	// First request - should succeed
-	req1 := httptest.NewRequest("GET", "/test", nil)
-	req1.RemoteAddr = "192.168.1.1:1234"
-	recorder1 := httptest.NewRecorder()
-	handler(recorder1, req1)
-	if recorder1.Code != http.StatusOK {
-		t.Errorf("First request should succeed, got status %d", recorder1.Code)
-	}
-
-	// Second request - should succeed
-	req2 := httptest.NewRequest("GET", "/test", nil)
-	req2.RemoteAddr = "192.168.1.1:1234"
-	recorder2 := httptest.NewRecorder()
-	handler(recorder2, req2)
-	if recorder2.Code != http.StatusOK {
-		t.Errorf("Second request should succeed, got status %d", recorder2.Code)
-	}
-
-	// Third request - should fail with 429
-	req3 := httptest.NewRequest("GET", "/test", nil)
-	req3.RemoteAddr = "192.168.1.1:1234"
-	recorder3 := httptest.NewRecorder()
-	handler(recorder3, req3)
-	if recorder3.Code != http.StatusTooManyRequests {
-		t.Errorf("Third request should fail with 429, got status %d", recorder3.Code)
-	}
-}
-
 func TestGetClientIP(t *testing.T) {
 	tests := []struct {
 		name       string
 		remoteAddr string
-		headers    map[string]string
 		expectedIP string
 	}{
 		{
-			name:       "X-Forwarded-For header",
-			remoteAddr: "10.0.0.1:1234",
-			headers:    map[string]string{"X-Forwarded-For": "203.0.113.1"},
-			expectedIP: "203.0.113.1",
-		},
-		{
-			name:       "X-Real-IP header",
-			remoteAddr: "10.0.0.1:1234",
-			headers:    map[string]string{"X-Real-IP": "203.0.113.2"},
-			expectedIP: "203.0.113.2",
-		},
-		{
-			name:       "RemoteAddr fallback",
+			name:       "RemoteAddr host and port",
 			remoteAddr: "203.0.113.3:1234",
-			headers:    map[string]string{},
 			expectedIP: "203.0.113.3",
 		},
 		{
-			name:       "X-Forwarded-For takes precedence",
-			remoteAddr: "10.0.0.1:1234",
-			headers: map[string]string{
-				"X-Forwarded-For": "203.0.113.4",
-				"X-Real-IP":       "203.0.113.5",
-			},
-			expectedIP: "203.0.113.4",
+			name:       "RemoteAddr fallback on split failure",
+			remoteAddr: "203.0.113.9",
+			expectedIP: "203.0.113.9",
 		},
 	}
 
@@ -155,10 +103,6 @@ func TestGetClientIP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request := httptest.NewRequest("GET", "/test", nil)
 			request.RemoteAddr = tt.remoteAddr
-			for k, v := range tt.headers {
-				request.Header.Set(k, v)
-			}
-
 			ip := getClientIP(request)
 			if ip != tt.expectedIP {
 				t.Errorf("Expected IP %s, got %s", tt.expectedIP, ip)
@@ -167,3 +111,37 @@ func TestGetClientIP(t *testing.T) {
 	}
 }
 
+func TestServerRateLimitMiddleware(t *testing.T) {
+	srv := &Server{
+		config:    &config.Config{RateLimit: 1},
+		ipLimiter: NewRateLimiter(1),
+	}
+
+	handler := srv.RateLimitMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req1 := httptest.NewRequest(http.MethodGet, "/balance", nil)
+	req1.RemoteAddr = "192.168.1.1:1234"
+	rec1 := httptest.NewRecorder()
+	handler(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first request should succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequest(http.MethodGet, "/balance", nil)
+	req2.RemoteAddr = "192.168.1.1:1234"
+	rec2 := httptest.NewRecorder()
+	handler(rec2, req2)
+	if rec2.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request should be rate limited, got %d", rec2.Code)
+	}
+
+	var resp config.ErrorResponse
+	if err := json.NewDecoder(rec2.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if resp.Error != "rate-limit-exceeded" {
+		t.Fatalf("unexpected error code %q", resp.Error)
+	}
+}

@@ -11,11 +11,6 @@ run:
 	@echo "Starting dogelytics..."
 	@go run ./cmd/dogelytics
 
-# Run with custom database path
-run-custom:
-	@echo "Starting dogelytics with custom settings..."
-	@go run ./cmd/dogelytics -dbpath="$(DBPATH)" -bind="$(BIND)" -confirmations=$(CONFIRMATIONS)
-
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
@@ -58,7 +53,6 @@ help:
 	@echo "Available targets:"
 	@echo "  build       - Build the dogelytics binary"
 	@echo "  run         - Run the service with default settings"
-	@echo "  run-custom  - Run with custom settings (requires DBPATH, BIND, CONFIRMATIONS env vars)"
 	@echo "  clean       - Remove build artifacts"
 	@echo "  deps        - Download and tidy dependencies"
 	@echo "  vet         - Run go vet"
@@ -70,7 +64,7 @@ help:
 	@echo "Examples:"
 	@echo "  make build"
 	@echo "  make run"
-	@echo "  DBPATH=../indexer/index.db BIND=localhost:9090 CONFIRMATIONS=6 make run-custom"
+	@echo "  INDEXER_DBURL=postgres://indexer:password@localhost:5432/indexer?sslmode=disable make run"
 
 # Default target
 .DEFAULT_GOAL := help

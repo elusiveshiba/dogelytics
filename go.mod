@@ -8,8 +8,6 @@ require (
 	golang.org/x/crypto v0.44.0
 )
 
-replace github.com/dogeorg/indexer => ../indexer
-
 require (
 	github.com/btcsuite/golangcrypto v0.0.0-20150304025918-53f62d9b43e8 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect

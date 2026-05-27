@@ -336,10 +336,10 @@ func (s *Store) GetUsageStats(hours int, filterType string, filterValues []strin
 	var stats UsageStats
 	var query string
 	var args []interface{}
-	
+
 	whereClause := "WHERE success = true"
 	argIdx := 1
-	
+
 	// Add filter conditions
 	if filterType == "keys" && len(filterValues) > 0 {
 		placeholders := make([]string, len(filterValues))
@@ -350,7 +350,7 @@ func (s *Store) GetUsageStats(hours int, filterType string, filterValues []strin
 		}
 		whereClause += fmt.Sprintf(" AND api_key IN (%s)", strings.Join(placeholders, ","))
 	}
-	
+
 	// Specific time period
 	query = fmt.Sprintf(`
 		SELECT 
@@ -362,12 +362,12 @@ func (s *Store) GetUsageStats(hours int, filterType string, filterValues []strin
 		AND timestamp >= now() - interval '1 hour' * $%d
 	`, whereClause, argIdx)
 	args = append(args, hours)
-	
+
 	err := s.db.QueryRowContext(s.ctx, query, args...).Scan(&stats.WalletsChecked, &stats.UniqueIPs, &stats.UniqueKeys)
 	if err != nil {
 		return stats, fmt.Errorf("get usage stats: %w", err)
 	}
-	
+
 	return stats, nil
 }
 
@@ -377,7 +377,7 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 	var query string
 	var args []interface{}
 	var interval string
-	
+
 	// Determine interval based on timeframe
 	switch hours {
 	case 1: // Hour
@@ -393,15 +393,15 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 	default:
 		interval = "1 hour"
 	}
-	
+
 	// Build time series query
 	additionalFilter := ""
 	argIdx := 1
-	
+
 	// First arg is always hours
 	args = append(args, hours)
 	argIdx++
-	
+
 	// Add filter if present
 	if filterType == "keys" && len(filterValues) > 0 {
 		placeholders := make([]string, len(filterValues))
@@ -412,7 +412,7 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 		}
 		additionalFilter = fmt.Sprintf("AND r.api_key IN (%s)", strings.Join(placeholders, ","))
 	}
-	
+
 	query = fmt.Sprintf(`
 		WITH time_series AS (
 			SELECT generate_series(
@@ -435,13 +435,13 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 		GROUP BY ts.time_bucket
 		ORDER BY ts.time_bucket ASC
 	`, interval, interval, additionalFilter)
-	
+
 	rows, err := s.db.QueryContext(s.ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get usage time series: %w", err)
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var point TimeSeriesPoint
 		if err := rows.Scan(&point.Timestamp, &point.WalletsChecked, &point.UniqueIPs, &point.UniqueKeys); err != nil {
@@ -449,12 +449,10 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 		}
 		points = append(points, point)
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("time series rows error: %w", err)
 	}
-	
+
 	return points, nil
 }
-
-

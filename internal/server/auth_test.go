@@ -55,4 +55,3 @@ func TestSetSessionCookie_HTTPSecure(t *testing.T) {
 		t.Fatalf("cookie should be Secure for HTTPS request")
 	}
 }
-

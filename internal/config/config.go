@@ -3,22 +3,22 @@ package config
 import (
 	"flag"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
-	IndexerDbURL    string // Indexer database (blockchain data)
-	DogelyticsDbURL string // Dogelytics database (users, API keys, sessions, logs)
+	IndexerDbURL    string
+	DogelyticsDbURL string
 	BindAddr        string
 	CorsOrigin      string
 	Confirmations   int64
-	RateLimit       int    // Maximum requests per IP per minute (0 = disabled)
-	APIKeyRateLimit int    // Maximum requests per API key per minute (0 = disabled)
-	SessionSecret   string // HMAC secret for signing sessions (required for local auth)
-	MaxKeysPerUser  int    // Max API keys per user
-	EnableUI        bool   // Enable web UI endpoints (login, register, keys pages)
-	EnableSignups   bool   // Enable user registration through the UI
+	RateLimit       int
+	APIKeyRateLimit int
+	SessionSecret   string
+	MaxKeysPerUser  int
+	EnableUI        bool
+	EnableSignups   bool
 }
 
 // getEnv returns environment variable value or default
@@ -68,16 +68,6 @@ func loadDotEnvIfPresent(path string) {
 	}
 }
 
-// getEnvBool returns environment variable as bool or default
-func getEnvBool(key string, defaultValue bool) bool {
-	if val := os.Getenv(key); val != "" {
-		if b, err := strconv.ParseBool(val); err == nil {
-			return b
-		}
-	}
-	return defaultValue
-}
-
 // getEnvInt returns environment variable as int or default
 func getEnvInt(key string, defaultValue int) int {
 	if val := os.Getenv(key); val != "" {
@@ -98,8 +88,18 @@ func getEnvInt64(key string, defaultValue int64) int64 {
 	return defaultValue
 }
 
-// ParseConfig parses command-line flags and environment variables, returns a populated Config
-// Environment variables take precedence over defaults, command-line flags take precedence over env vars
+// getEnvBool returns environment variable as bool or default.
+func getEnvBool(key string, defaultValue bool) bool {
+	if val := os.Getenv(key); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			return b
+		}
+	}
+	return defaultValue
+}
+
+// ParseConfig parses command-line flags and environment variables, then returns a populated Config.
+// Environment variables take precedence over defaults, and command-line flags take precedence over env vars.
 func ParseConfig() *Config {
 	var config Config
 

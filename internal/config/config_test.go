@@ -24,56 +24,56 @@ func unsetEnvForTest(t *testing.T, key string) {
 func TestLoadDotEnvIfPresent_LoadsKeyValues(t *testing.T) {
 	tmpDir := t.TempDir()
 	envPath := filepath.Join(tmpDir, ".env")
-	content := "DOGELYTICS_DBURL=postgres://user:pass@localhost:5432/dogelytics?sslmode=disable\n"
+	content := "INDEXER_DBURL=postgres://user:pass@localhost:5432/indexer?sslmode=disable\n"
 
 	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write .env: %v", err)
 	}
 
-	unsetEnvForTest(t, "DOGELYTICS_DBURL")
+	unsetEnvForTest(t, "INDEXER_DBURL")
 	loadDotEnvIfPresent(envPath)
 
-	got := os.Getenv("DOGELYTICS_DBURL")
-	want := "postgres://user:pass@localhost:5432/dogelytics?sslmode=disable"
+	got := os.Getenv("INDEXER_DBURL")
+	want := "postgres://user:pass@localhost:5432/indexer?sslmode=disable"
 	if got != want {
-		t.Fatalf("DOGELYTICS_DBURL mismatch: got %q, want %q", got, want)
+		t.Fatalf("INDEXER_DBURL mismatch: got %q, want %q", got, want)
 	}
 }
 
 func TestLoadDotEnvIfPresent_PreservesExistingEnv(t *testing.T) {
 	tmpDir := t.TempDir()
 	envPath := filepath.Join(tmpDir, ".env")
-	content := "DOGELYTICS_DBURL=postgres://fromfile@localhost:5432/dogelytics?sslmode=disable\n"
+	content := "INDEXER_DBURL=postgres://fromfile@localhost:5432/indexer?sslmode=disable\n"
 
 	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write .env: %v", err)
 	}
 
-	t.Setenv("DOGELYTICS_DBURL", "postgres://fromenv@localhost:5432/dogelytics?sslmode=disable")
+	t.Setenv("INDEXER_DBURL", "postgres://fromenv@localhost:5432/indexer?sslmode=disable")
 	loadDotEnvIfPresent(envPath)
 
-	got := os.Getenv("DOGELYTICS_DBURL")
-	want := "postgres://fromenv@localhost:5432/dogelytics?sslmode=disable"
+	got := os.Getenv("INDEXER_DBURL")
+	want := "postgres://fromenv@localhost:5432/indexer?sslmode=disable"
 	if got != want {
-		t.Fatalf("DOGELYTICS_DBURL should preserve existing env: got %q, want %q", got, want)
+		t.Fatalf("INDEXER_DBURL should preserve existing env: got %q, want %q", got, want)
 	}
 }
 
 func TestLoadDotEnvIfPresent_HandlesExportAndQuotes(t *testing.T) {
 	tmpDir := t.TempDir()
 	envPath := filepath.Join(tmpDir, ".env")
-	content := "export DOGELYTICS_DBURL='postgres://quoted@localhost:5432/dogelytics?sslmode=disable'\n"
+	content := "export INDEXER_DBURL='postgres://quoted@localhost:5432/indexer?sslmode=disable'\n"
 
 	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write .env: %v", err)
 	}
 
-	unsetEnvForTest(t, "DOGELYTICS_DBURL")
+	unsetEnvForTest(t, "INDEXER_DBURL")
 	loadDotEnvIfPresent(envPath)
 
-	got := os.Getenv("DOGELYTICS_DBURL")
-	want := "postgres://quoted@localhost:5432/dogelytics?sslmode=disable"
+	got := os.Getenv("INDEXER_DBURL")
+	want := "postgres://quoted@localhost:5432/indexer?sslmode=disable"
 	if got != want {
-		t.Fatalf("DOGELYTICS_DBURL mismatch with export/quotes: got %q, want %q", got, want)
+		t.Fatalf("INDEXER_DBURL mismatch with export/quotes: got %q, want %q", got, want)
 	}
 }

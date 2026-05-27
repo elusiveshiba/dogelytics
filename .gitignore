@@ -1,6 +1,5 @@
 # Binaries
 dogelytics
-admin
 *.exe
 *.exe~
 *.dll

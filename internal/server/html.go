@@ -352,4 +352,3 @@ const htmlFooter = `
 </body>
 </html>
 `
-

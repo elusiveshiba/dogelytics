@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/doge/koinu"
+	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
 // Store provides read-only database access for dogelytics
@@ -119,4 +119,3 @@ func (s *Store) Close() error {
 func (s *Store) QueryContext(query string, args ...interface{}) (*sql.Rows, error) {
 	return s.db.QueryContext(s.ctx, query, args...)
 }
-

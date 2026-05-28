@@ -289,6 +289,14 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
         <h3>Indexed Height</h3>
         <div id="stat-height" class="dashboard-stat-value">-</div>
       </div>
+      <div class="dashboard-card">
+        <h3>Blockchain Height</h3>
+        <div id="stat-blockchain-height" class="dashboard-stat-value">-</div>
+      </div>
+      <div class="dashboard-card">
+        <h3>Indexed</h3>
+        <div id="stat-indexed-percent" class="dashboard-stat-value">-</div>
+      </div>
     </div>
     <div id="stats-status" class="dashboard-status" aria-live="polite"></div>
   </div>
@@ -349,6 +357,12 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       return whole + '.' + fraction;
     }
 
+    function formatPercent(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return '-';
+      return number.toFixed(2).replace(/\.?0+$/, '') + '%';
+    }
+
     async function loadDashboardStats() {
       statsStatus.textContent = 'Loading dashboard stats...';
       statsStatus.className = 'dashboard-status';
@@ -364,6 +378,8 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
         setText('stat-wallets-24h', formatInteger(payload.wallets_checked_last_24h));
         setText('stat-unique-wallets-24h', formatInteger(payload.unique_wallets_last_24h));
         setText('stat-height', formatInteger(payload.height));
+        setText('stat-blockchain-height', payload.blockchain_height ? formatInteger(payload.blockchain_height) : '-');
+        setText('stat-indexed-percent', payload.indexed_percent == null ? '-' : formatPercent(payload.indexed_percent));
 
         if (payload.available) {
           statsStatus.textContent = '';
@@ -492,6 +508,7 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		Available: false,
 		Message:   "Usage statistics are currently unavailable.",
 	}
+	s.populateBlockchainProgress(r, &response)
 
 	if !s.hasAuthStore() {
 		s.sendJSON(w, http.StatusOK, response)
@@ -511,6 +528,28 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 	response.WalletsCheckedLast24h = stats.WalletsCheckedLast24h
 	response.UniqueWalletsLast24h = stats.UniqueWalletsLast24h
 	s.sendJSON(w, http.StatusOK, response)
+}
+
+func (s *Server) populateBlockchainProgress(r *http.Request, response *DashboardStatsResponse) {
+	if s.coreClient == nil {
+		return
+	}
+
+	blockchainHeight, err := s.coreClient.BlockchainHeight(r.Context())
+	if err != nil {
+		log.Printf("[Dogelytics] failed to load blockchain height: %v", err)
+		return
+	}
+	if blockchainHeight <= 0 {
+		return
+	}
+
+	response.BlockchainHeight = blockchainHeight
+	indexedPercent := (float64(response.Height) / float64(blockchainHeight)) * 100
+	if indexedPercent > 100 {
+		indexedPercent = 100
+	}
+	response.IndexedPercent = &indexedPercent
 }
 
 func uiURLForPort(r *http.Request, port int) string {

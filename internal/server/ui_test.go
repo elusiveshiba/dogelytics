@@ -1,7 +1,10 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +14,18 @@ import (
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
 )
+
+type fakeCoreClient struct {
+	height int64
+	err    error
+}
+
+func (f fakeCoreClient) BlockchainHeight(context.Context) (int64, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.height, nil
+}
 
 func TestAdminHandlerRoutes(t *testing.T) {
 	srv := newTestServer(&fakeBalanceStore{}, &config.Config{
@@ -82,6 +97,9 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	}
 	if !strings.Contains(body, "formatInteger(payload.height)") {
 		t.Fatalf("expected indexed height formatting in %q", body)
+	}
+	if !strings.Contains(body, "formatInteger(payload.blockchain_height)") {
+		t.Fatalf("expected blockchain height formatting in %q", body)
 	}
 	if !strings.Contains(body, "'Ð' + formatDogeAmount(payload.current)") {
 		t.Fatalf("expected formatted Dogecoin balance in %q", body)
@@ -193,6 +211,7 @@ func TestDashboardStatsWithoutAuthStore(t *testing.T) {
 		CorsOrigin:        "*",
 		EnableDashboardUI: true,
 	})
+	srv.coreClient = fakeCoreClient{height: 1000}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard-stats", nil)
 	rec := httptest.NewRecorder()
@@ -211,5 +230,35 @@ func TestDashboardStatsWithoutAuthStore(t *testing.T) {
 	}
 	if resp.Height != 777 {
 		t.Fatalf("expected height 777, got %+v", resp)
+	}
+	if resp.BlockchainHeight != 1000 {
+		t.Fatalf("expected blockchain height 1000, got %+v", resp)
+	}
+	if resp.IndexedPercent == nil || math.Abs(*resp.IndexedPercent-77.7) > 0.0001 {
+		t.Fatalf("expected indexed percent 77.7, got %+v", resp)
+	}
+}
+
+func TestDashboardStatsIgnoresCoreHeightErrors(t *testing.T) {
+	srv := newTestServer(&fakeBalanceStore{height: 777}, &config.Config{
+		CorsOrigin:        "*",
+		EnableDashboardUI: true,
+	})
+	srv.coreClient = fakeCoreClient{err: errors.New("core unavailable")}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dashboard-stats", nil)
+	rec := httptest.NewRecorder()
+	srv.DashboardHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp DashboardStatsResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode dashboard stats response: %v", err)
+	}
+	if resp.BlockchainHeight != 0 || resp.IndexedPercent != nil {
+		t.Fatalf("expected absent blockchain progress, got %+v", resp)
 	}
 }

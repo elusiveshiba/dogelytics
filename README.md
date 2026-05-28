@@ -162,6 +162,9 @@ Configuration is loaded in this order (later sources override earlier ones):
 | `DOGELYTICS_DBURL` | `-dogelytics-dburl` | PostgreSQL URL for dogelytics database (users, keys, sessions) | `postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable` |
 | `BIND` | `-bind` | HTTP server bind address | `localhost:4420` |
 | `CORS` | `-cors` | CORS allowed origin (`*` for all) | `*` |
+| `CORE_RPC_URL` | `-core-rpc-url` | Dogecoin Core RPC URL for dashboard blockchain height | _(empty)_ |
+| `CORE_RPC_USER` | `-core-rpc-user` | Dogecoin Core RPC username | _(empty)_ |
+| `CORE_RPC_PASSWORD` | `-core-rpc-password` | Dogecoin Core RPC password | _(empty)_ |
 | `CONFIRMATIONS` | `-confirmations` | Confirmations required for available balance | `6` |
 | `RATELIMIT` | `-ratelimit` | Max requests per IP per minute (0 = disabled) | `10` |
 | `API_KEY_RATELIMIT` | `-apikey-ratelimit` | Max requests per API key per minute (0 = disabled) | `120` |

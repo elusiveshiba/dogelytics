@@ -21,6 +21,7 @@ type Server struct {
 	authStore        *store.Store
 	conversionStore  ConversionStore
 	conversionClient ConversionClient
+	coreClient       CoreClient
 	config           *config.Config
 	ipLimiter        *RateLimiter
 	apiLimiter       *RateLimiter
@@ -33,6 +34,7 @@ func NewServer(indexerStore BalanceStore, authStore *store.Store, cfg *config.Co
 		authStore:        authStore,
 		conversionStore:  authStore,
 		conversionClient: NewCoinGeckoClient(nil),
+		coreClient:       NewCoreRPCClient(cfg.CoreRPCURL, cfg.CoreRPCUser, cfg.CoreRPCPassword, nil),
 		config:           cfg,
 		ipLimiter:        ipLimiter,
 		apiLimiter:       apiLimiter,

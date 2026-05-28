@@ -43,9 +43,14 @@ func (s *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func rateLimitMessage(limit int, retryAfter time.Duration) string {
-	minutes := int(math.Ceil(retryAfter.Minutes()))
-	if minutes < 1 {
-		minutes = 1
+	if retryAfter < time.Minute {
+		seconds := int(math.Ceil(retryAfter.Seconds()))
+		if seconds < 1 {
+			seconds = 1
+		}
+		return fmt.Sprintf("Rate limit exceeded. Maximum %d requests per minute. Try again in %d second(s).", limit, seconds)
 	}
+
+	minutes := int(math.Ceil(retryAfter.Minutes()))
 	return fmt.Sprintf("Rate limit exceeded. Maximum %d requests per minute. Try again in %d minute(s).", limit, minutes)
 }

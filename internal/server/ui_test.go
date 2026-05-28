@@ -80,6 +80,12 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "applyMinimised(true)") {
 		t.Fatalf("expected tips widget to start minimised in %q", body)
 	}
+	if !strings.Contains(body, "formatInteger(payload.height)") {
+		t.Fatalf("expected indexed height formatting in %q", body)
+	}
+	if !strings.Contains(body, "'Ð' + formatDogeAmount(payload.current)") {
+		t.Fatalf("expected formatted Dogecoin balance in %q", body)
+	}
 }
 
 func TestDashboardDocsRoute(t *testing.T) {

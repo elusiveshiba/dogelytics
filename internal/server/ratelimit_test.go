@@ -145,7 +145,21 @@ func TestServerRateLimitMiddleware(t *testing.T) {
 	if resp.Error != "rate-limit-exceeded" {
 		t.Fatalf("unexpected error code %q", resp.Error)
 	}
-	if !strings.Contains(resp.Message, "Try again in 1 minute(s).") {
+	if !strings.Contains(resp.Message, "second(s).") {
 		t.Fatalf("expected retry message, got %q", resp.Message)
+	}
+}
+
+func TestRateLimitMessageUsesSecondsUnderOneMinute(t *testing.T) {
+	message := rateLimitMessage(10, 33*time.Second)
+	if !strings.Contains(message, "Try again in 33 second(s).") {
+		t.Fatalf("expected seconds retry message, got %q", message)
+	}
+}
+
+func TestRateLimitMessageUsesMinutesAtOneMinuteOrMore(t *testing.T) {
+	message := rateLimitMessage(10, 61*time.Second)
+	if !strings.Contains(message, "Try again in 2 minute(s).") {
+		t.Fatalf("expected minutes retry message, got %q", message)
 	}
 }

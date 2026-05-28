@@ -330,6 +330,25 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       if (element) element.textContent = value;
     }
 
+    function formatInteger(value) {
+      const text = String(value);
+      if (!/^-?\d+$/.test(text)) return text;
+      const sign = text.startsWith('-') ? '-' : '';
+      const digits = sign ? text.slice(1) : text;
+      return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function formatDogeAmount(value) {
+      const text = String(value);
+      const parts = text.split('.');
+      const whole = formatInteger(parts[0]);
+      if (parts.length === 1) return whole;
+
+      const trimmedFraction = parts[1].replace(/0+$/, '');
+      const fraction = (trimmedFraction || '00').padEnd(2, '0');
+      return whole + '.' + fraction;
+    }
+
     async function loadDashboardStats() {
       statsStatus.textContent = 'Loading dashboard stats...';
       statsStatus.className = 'dashboard-status';
@@ -341,10 +360,10 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
           throw new Error(payload.message || 'Failed to load dashboard stats');
         }
 
-        setText('stat-total-wallets', String(payload.total_wallets_checked));
-        setText('stat-wallets-24h', String(payload.wallets_checked_last_24h));
-        setText('stat-unique-wallets-24h', String(payload.unique_wallets_last_24h));
-        setText('stat-height', String(payload.height));
+        setText('stat-total-wallets', formatInteger(payload.total_wallets_checked));
+        setText('stat-wallets-24h', formatInteger(payload.wallets_checked_last_24h));
+        setText('stat-unique-wallets-24h', formatInteger(payload.unique_wallets_last_24h));
+        setText('stat-height', formatInteger(payload.height));
 
         if (payload.available) {
           statsStatus.textContent = '';
@@ -379,10 +398,10 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
           throw new Error(payload.message || 'Failed to look up wallet balance');
         }
 
-        setText('balance-current', 'Ð ' + payload.current);
-        setText('balance-available', 'Ð ' + payload.available);
-        setText('balance-incoming', 'Ð ' + payload.incoming);
-        setText('balance-outgoing', 'Ð ' + payload.outgoing);
+        setText('balance-current', 'Ð' + formatDogeAmount(payload.current));
+        setText('balance-available', 'Ð' + formatDogeAmount(payload.available));
+        setText('balance-incoming', 'Ð' + formatDogeAmount(payload.incoming));
+        setText('balance-outgoing', 'Ð' + formatDogeAmount(payload.outgoing));
         walletResults.hidden = false;
         walletStatus.textContent = 'Balance loaded.';
         walletStatus.className = 'dashboard-status';

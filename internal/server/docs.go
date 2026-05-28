@@ -1,12 +1,23 @@
 package server
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 // HandleGETDocs renders the public API documentation page.
 func (s *Server) HandleGETDocs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
+	}
+
+	data := struct {
+		ShowTipsWidget bool
+		TipsAddress    string
+	}{
+		ShowTipsWidget: s.config.EnableDashboardTips && strings.TrimSpace(s.config.DashboardTipsAddress) != "",
+		TipsAddress:    s.config.DashboardTipsAddress,
 	}
 
 	renderTemplate(w, htmlHead+`
@@ -72,10 +83,6 @@ body {
   margin-top: 4px;
 }
 .dashboard-button {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 20;
   display: inline-block;
   background: #f0e6c8;
   border-top: 2px solid #fff;
@@ -94,10 +101,138 @@ body {
   border-right-color: #fff;
   border-bottom-color: #fff;
 }
+.dashboard-actions {
+  display: contents;
+}
+.tips-widget {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  width: 175px;
+  background: #f0e6c8;
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
+  border-right: 2px solid #3a3020;
+  border-bottom: 2px solid #3a3020;
+  box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
+  padding: 2px;
+}
+.tips-widget.minimised {
+  width: auto;
+}
+.tips-title {
+  background: linear-gradient(to right, #c8a951, #e6c85a);
+  color: #000;
+  padding: 2px 4px;
+  font-weight: bold;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.tips-toggle {
+  width: 20px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+.tips-toggle:active {
+  width: 20px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0;
+}
+.tips-body {
+  padding: 6px;
+}
+.tips-body p {
+  margin-bottom: 5px;
+}
+.tips-qr {
+  display: flex;
+  justify-content: center;
+  background: #fff;
+  border-top: 1px solid #a08030;
+  border-left: 1px solid #a08030;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  margin-bottom: 5px;
+  padding: 4px;
+}
+.tips-address-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border-top: 1px solid #a08030;
+  border-left: 1px solid #a08030;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  cursor: pointer;
+  padding: 4px;
+}
+.tips-widget.minimised .tips-body {
+  display: none;
+}
+.tips-address {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  padding: 0;
+  word-break: break-all;
+  font-size: 10px;
+}
+.tips-copy-icon {
+  position: relative;
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+}
+.tips-copy-icon::before,
+.tips-copy-icon::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border: 1px solid #000;
+}
+.tips-copy-icon::before {
+  left: 1px;
+  top: 4px;
+}
+.tips-copy-icon::after {
+  left: 4px;
+  top: 1px;
+}
+.dashboard-status {
+  min-height: 18px;
+  margin-top: 8px;
+  color: #8b6914;
+}
+.dashboard-status.error {
+  color: #8b0000;
+}
 @media (max-width: 640px) {
-  .dashboard-button {
-    left: 12px;
-    bottom: 12px;
+  .dashboard-actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    margin-top: 12px;
+    padding-bottom: 12px;
+  }
+  .tips-widget {
+    position: static;
+    flex: 0 1 auto;
+    width: auto;
+    margin-left: auto;
   }
 }
 </style>
@@ -111,6 +246,9 @@ body {
     <div class="window-content">
       <h1>Dogelytics API Docs</h1>
       <p style="text-align: center;">A small public API for Dogecoin wallet balances and conversion rates.</p>
+      <div class="links">
+        <a class="dashboard-button" href="/">dashboard</a>
+      </div>
     </div>
   </div>
 
@@ -238,8 +376,76 @@ GET /api/dashboard-stats</code></pre>
     </div>
   </div>
 </div>
-<a class="dashboard-button" href="/">dashboard</a>
+<div class="dashboard-actions">
+{{if .ShowTipsWidget}}
+<script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>
+<div id="tips-widget" class="tips-widget">
+  <div class="tips-title">
+    <span>Such coffee?</span>
+    <button id="tips-toggle" type="button" class="tips-toggle" aria-label="Minimise tips">-</button>
+  </div>
+  <div class="tips-body">
+    <p>Enjoying Dogelytics? Send a tip to:</p>
+    <div class="tips-qr">
+      <doge-qr address="{{.TipsAddress}}" size="sm" background="#fff" fill="#000"></doge-qr>
+    </div>
+    <div id="tips-copy-row" class="tips-address-row" role="button" tabindex="0" title="Copy tip address">
+      <code id="tips-address" class="tips-address">{{.TipsAddress}}</code>
+      <span class="tips-copy-icon" aria-hidden="true"></span>
+    </div>
+    <div id="tips-status" class="dashboard-status" aria-live="polite"></div>
+  </div>
+</div>
+{{end}}
+</div>
+{{if .ShowTipsWidget}}
+<script>
+  (function() {
+    const widget = document.getElementById('tips-widget');
+    const toggle = document.getElementById('tips-toggle');
+    const copyRow = document.getElementById('tips-copy-row');
+    const address = document.getElementById('tips-address');
+    const status = document.getElementById('tips-status');
+    if (!widget || !toggle || !copyRow || !address || !status) return;
+
+    function applyMinimised(minimised) {
+      widget.classList.toggle('minimised', minimised);
+      toggle.textContent = minimised ? '+' : '-';
+      toggle.setAttribute('aria-label', minimised ? 'Expand tips' : 'Minimise tips');
+      try {
+        localStorage.setItem('dogelytics_tips_minimised', minimised ? 'true' : 'false');
+      } catch (_) {}
+    }
+
+    applyMinimised(true);
+
+    toggle.addEventListener('click', function() {
+      applyMinimised(!widget.classList.contains('minimised'));
+    });
+
+    async function copyTipAddress() {
+      const text = address.textContent || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = 'Copied tip address.';
+        status.className = 'dashboard-status';
+      } catch (_) {
+        status.textContent = 'Copy failed. Select the address manually.';
+        status.className = 'dashboard-status error';
+      }
+    }
+
+    copyRow.addEventListener('click', copyTipAddress);
+    copyRow.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        copyTipAddress();
+      }
+    });
+  })();
+</script>
+{{end}}
 </body>
 </html>
-`, nil)
+`, data)
 }

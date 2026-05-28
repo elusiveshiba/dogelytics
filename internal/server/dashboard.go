@@ -210,10 +210,6 @@ body {
   display: contents;
 }
 .docs-button {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 20;
   display: inline-block;
   background: #f0e6c8;
   border-top: 2px solid #fff;
@@ -344,21 +340,15 @@ body {
   .dashboard-actions {
     display: flex;
     align-items: flex-end;
-    justify-content: space-between;
-    gap: 12px;
+    justify-content: flex-end;
     margin-top: 12px;
     padding-bottom: 12px;
   }
   .tips-widget {
     position: static;
     flex: 0 1 auto;
-    max-width: calc(100% - 72px);
     width: auto;
     margin-left: auto;
-  }
-  .docs-button {
-    position: static;
-    flex: 0 0 auto;
   }
 }
 </style>
@@ -374,11 +364,12 @@ body {
       <p style="text-align: center;">
         Check a Dogecoin wallet balance.
       </p>
-      {{if .ShowAdminLink}}
       <div class="links">
+        <a class="docs-button" href="/docs">docs</a>
+        {{if .ShowAdminLink}}
         <a href="{{.AdminURL}}">Open admin UI</a>
+        {{end}}
       </div>
-      {{end}}
     </div>
   </div>
 
@@ -506,7 +497,6 @@ body {
   </div>
 
   <div class="dashboard-actions">
-    <a class="docs-button" href="/docs">docs</a>
 {{if .ShowTipsWidget}}
 <script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>
 <div id="tips-widget" class="tips-widget">

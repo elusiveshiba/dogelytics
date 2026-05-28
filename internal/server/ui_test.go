@@ -140,10 +140,13 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 			t.Fatalf("expected dashboard stats layout to contain %q in %q", want, body)
 		}
 	}
-	if !strings.Contains(body, `class="docs-button" href="/docs">docs</a>`) {
-		t.Fatalf("expected docs button in %q", body)
+	docsButtonIndex := strings.Index(body, `class="docs-button" href="/docs">docs</a>`)
+	headerLinksIndex := strings.Index(body, `<div class="links">`)
+	dashboardActionsIndex := strings.Index(body, `<div class="dashboard-actions">`)
+	if docsButtonIndex == -1 || headerLinksIndex == -1 || dashboardActionsIndex == -1 || !(headerLinksIndex < docsButtonIndex && docsButtonIndex < dashboardActionsIndex) {
+		t.Fatalf("expected docs button in header links before dashboard actions in %q", body)
 	}
-	if !strings.Contains(body, `class="dashboard-actions"`) || !strings.Contains(body, "position: static;") || !strings.Contains(body, "margin-left: auto;") {
+	if !strings.Contains(body, `class="dashboard-actions"`) || !strings.Contains(body, "justify-content: flex-end;") || !strings.Contains(body, "margin-left: auto;") {
 		t.Fatalf("expected mobile bottom actions layout in %q", body)
 	}
 	if !strings.Contains(body, "Such coffee?") {
@@ -201,8 +204,10 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 
 func TestDashboardDocsRoute(t *testing.T) {
 	srv := newTestServer(&fakeBalanceStore{}, &config.Config{
-		CorsOrigin:        "*",
-		EnableDashboardUI: true,
+		CorsOrigin:           "*",
+		EnableDashboardUI:    true,
+		EnableDashboardTips:  true,
+		DashboardTipsAddress: "DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/docs", nil)
@@ -232,6 +237,12 @@ func TestDashboardDocsRoute(t *testing.T) {
 		"GET /api/dashboard-stats",
 		"unsupported-address",
 		"database-error",
+		"Such coffee?",
+		"Enjoying Dogelytics? Send a tip to:",
+		"DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz",
+		`src="https://fetch.dogecoin.org/doge-qr.js"`,
+		`<doge-qr address="DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz" size="sm" background="#fff" fill="#000"></doge-qr>`,
+		"applyMinimised(true)",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected docs page to contain %q in %q", want, body)
@@ -261,6 +272,15 @@ func TestDashboardDocsRoute(t *testing.T) {
 	}
 	if strings.Contains(body, "Back to dashboard") {
 		t.Fatalf("did not expect old back link in %q", body)
+	}
+	dashboardButtonIndex := strings.Index(body, `class="dashboard-button" href="/">dashboard</a>`)
+	headerLinksIndex := strings.Index(body, `<div class="links">`)
+	dashboardActionsIndex := strings.Index(body, `<div class="dashboard-actions">`)
+	if dashboardButtonIndex == -1 || headerLinksIndex == -1 || dashboardActionsIndex == -1 || !(headerLinksIndex < dashboardButtonIndex && dashboardButtonIndex < dashboardActionsIndex) {
+		t.Fatalf("expected dashboard button in docs header links before dashboard actions in %q", body)
+	}
+	if !strings.Contains(body, "justify-content: flex-end;") || !strings.Contains(body, "margin-left: auto;") {
+		t.Fatalf("expected docs mobile tips layout in %q", body)
 	}
 	baseIndex := strings.Index(body, "<span>Base URL</span>")
 	apiKeysIndex := strings.Index(body, "<span>API Keys</span>")

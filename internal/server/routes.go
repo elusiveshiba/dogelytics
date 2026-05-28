@@ -10,6 +10,7 @@ func (s *Server) Handler() http.Handler {
 // APIHandler returns the public API handler.
 func (s *Server) APIHandler() http.Handler {
 	mux := http.NewServeMux()
+	registerImageRoutes(mux)
 	mux.HandleFunc("/health", s.HandleHealth)
 	mux.HandleFunc("/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleBalance)))
 	mux.HandleFunc("/conversion", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleConversion)))
@@ -52,6 +53,7 @@ func (s *Server) AdminHandler() http.Handler {
 func (s *Server) DashboardHandler() http.Handler {
 	mux := http.NewServeMux()
 	registerFaviconRoutes(mux)
+	registerImageRoutes(mux)
 	mux.HandleFunc("/docs", s.HandleGETDocs)
 	mux.HandleFunc("/", s.HandleGETDashboard)
 	mux.HandleFunc("/api/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardBalance)))

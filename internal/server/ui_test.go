@@ -72,6 +72,27 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "Dogelytics Dashboard") {
 		t.Fatalf("expected dashboard title in %q", body)
 	}
+	if strings.Count(body, `class="container dashboard-window"`) != 3 {
+		t.Fatalf("expected three dashboard windows in %q", body)
+	}
+	if strings.Count(body, `class="title-coin" src="/img/dogecoin-doge-logo.svg"`) != 3 {
+		t.Fatalf("expected dashboard coin icon on each window in %q", body)
+	}
+	for _, want := range []string{
+		`class="title-coin" src="/img/dogecoin-doge-logo.svg"`,
+		"linear-gradient(to right, #c8a951, #e6c85a)",
+		"background: #2b2b2b;",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected Dogecoin theme dashboard to contain %q in %q", want, body)
+		}
+	}
+	if strings.Contains(body, "doge-ghost.png") || strings.Contains(body, "bg-ghost") {
+		t.Fatalf("did not expect ghost image on dashboard in %q", body)
+	}
+	if strings.Contains(body, ".dashboard-card") || strings.Contains(body, "tr:hover") || strings.Contains(body, "#000080") {
+		t.Fatalf("did not expect old dashboard card, hover, or navy theme styles in %q", body)
+	}
 	if !strings.Contains(body, `class="wallet-checker-form"`) || !strings.Contains(body, `class="wallet-checker-input"`) {
 		t.Fatalf("expected prominent wallet checker form classes in %q", body)
 	}
@@ -146,6 +167,9 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "applyMinimised(true)") {
 		t.Fatalf("expected tips widget to start minimised in %q", body)
 	}
+	if !strings.Contains(body, "display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 11px;") {
+		t.Fatalf("expected centred tips toggle styling in %q", body)
+	}
 	if !strings.Contains(body, "formatIndexedProgress(payload.height, payload.blockchain_height)") {
 		t.Fatalf("expected indexed progress formatting in %q", body)
 	}
@@ -213,12 +237,34 @@ func TestDashboardDocsRoute(t *testing.T) {
 			t.Fatalf("expected docs page to contain %q in %q", want, body)
 		}
 	}
+	if strings.Count(body, `class="container docs-window"`) != 8 {
+		t.Fatalf("expected eight docs windows in %q", body)
+	}
+	if strings.Count(body, `class="title-coin" src="/img/dogecoin-doge-logo.svg"`) != 8 {
+		t.Fatalf("expected docs coin icon on each window in %q", body)
+	}
+	for _, want := range []string{
+		`class="title-coin" src="/img/dogecoin-doge-logo.svg"`,
+		"linear-gradient(to right, #c8a951, #e6c85a)",
+		"background: #e8d89c;",
+		"background: #2b2b2b;",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected Dogecoin theme docs to contain %q in %q", want, body)
+		}
+	}
+	if strings.Contains(body, "doge-ghost.png") || strings.Contains(body, "bg-ghost") {
+		t.Fatalf("did not expect ghost image on docs page in %q", body)
+	}
+	if strings.Contains(body, "tr:hover") || strings.Contains(body, "#000080") {
+		t.Fatalf("did not expect old docs hover or navy theme styles in %q", body)
+	}
 	if strings.Contains(body, "Back to dashboard") {
 		t.Fatalf("did not expect old back link in %q", body)
 	}
-	baseIndex := strings.Index(body, "<h2>Base URL</h2>")
-	apiKeysIndex := strings.Index(body, "<h2>API Keys</h2>")
-	balanceIndex := strings.Index(body, "<h2>GET /balance</h2>")
+	baseIndex := strings.Index(body, "<span>Base URL</span>")
+	apiKeysIndex := strings.Index(body, "<span>API Keys</span>")
+	balanceIndex := strings.Index(body, "<span>GET /balance</span>")
 	if baseIndex == -1 || apiKeysIndex == -1 || balanceIndex == -1 || !(baseIndex < apiKeysIndex && apiKeysIndex < balanceIndex) {
 		t.Fatalf("expected API Keys section immediately after Base URL in %q", body)
 	}
@@ -241,6 +287,7 @@ func TestDashboardHandlerServesFavicons(t *testing.T) {
 		"/apple-touch-icon.png",
 		"/site.webmanifest",
 		"/favicons/favicon-32x32.png",
+		"/img/dogecoin-doge-logo.svg",
 	}
 
 	for _, path := range tests {

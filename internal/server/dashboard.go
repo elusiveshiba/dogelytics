@@ -27,11 +27,29 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 		TipsAddress:    s.config.DashboardTipsAddress,
 	}
 
-	renderTemplate(w, htmlHeader+`
+	renderTemplate(w, htmlHead+`
 <style>
-.dashboard-shell {
-  display: grid;
-  gap: 12px;
+body {
+  align-items: flex-start;
+  overflow-x: hidden;
+}
+.dashboard-desktop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 900px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+.dashboard-window {
+  width: 100%;
+}
+.title-coin {
+  display: block;
+  width: 14px;
+  height: 14px;
 }
 .dashboard-grid {
   display: grid;
@@ -45,17 +63,6 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 }
 .dashboard-section h3 {
   margin: 0;
-}
-.dashboard-card {
-  background: #c0c0c0;
-  border-top: 2px solid #fff;
-  border-left: 2px solid #fff;
-  border-right: 2px solid #808080;
-  border-bottom: 2px solid #808080;
-  padding: 8px;
-}
-.dashboard-card h3 {
-  margin-top: 0;
 }
 .wallet-checker-form {
   display: grid;
@@ -97,12 +104,12 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 .wallet-checker-currency {
   min-width: 120px;
   padding: 4px 24px 4px 6px;
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
+  border-top: 1px solid #a08030;
+  border-left: 1px solid #a08030;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   border-radius: 0;
-  box-shadow: inset -1px -1px 0 #c0c0c0, inset 1px 1px 0 #000;
+  box-shadow: inset -1px -1px 0 #f0e6c8, inset 1px 1px 0 #000;
   background: #fff;
   color: #000;
   font-size: 11px;
@@ -120,12 +127,12 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #c0c0c0;
+  background: #f0e6c8;
   border-top: 1px solid #fff;
   border-left: 1px solid #fff;
-  border-right: 1px solid #808080;
-  border-bottom: 1px solid #808080;
-  box-shadow: inset 1px 1px 0 #dfdfdf;
+  border-right: 1px solid #a08030;
+  border-bottom: 1px solid #a08030;
+  box-shadow: inset 1px 1px 0 #f8f0d8;
   color: #000;
   font-size: 9px;
   pointer-events: none;
@@ -135,8 +142,8 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 }
 .dashboard-stat-card {
   background: #fff;
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
+  border-top: 1px solid #a08030;
+  border-left: 1px solid #a08030;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   padding: 8px;
@@ -170,8 +177,8 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 }
 .dashboard-balance-item {
   background: #fff;
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
+  border-top: 1px solid #a08030;
+  border-left: 1px solid #a08030;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   padding: 8px;
@@ -194,7 +201,7 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 .dashboard-status {
   min-height: 18px;
   margin-top: 8px;
-  color: #000080;
+  color: #8b6914;
 }
 .dashboard-status.error {
   color: #8b0000;
@@ -208,20 +215,20 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   bottom: 16px;
   z-index: 20;
   display: inline-block;
-  background: #c0c0c0;
+  background: #f0e6c8;
   border-top: 2px solid #fff;
   border-left: 2px solid #fff;
-  border-right: 2px solid #000;
-  border-bottom: 2px solid #000;
-  box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080;
+  border-right: 2px solid #3a3020;
+  border-bottom: 2px solid #3a3020;
+  box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
   color: #000;
   font-weight: bold;
   padding: 5px 8px;
   text-decoration: none;
 }
 .docs-button:active {
-  border-top-color: #000;
-  border-left-color: #000;
+  border-top-color: #3a3020;
+  border-left-color: #3a3020;
   border-right-color: #fff;
   border-bottom-color: #fff;
 }
@@ -231,20 +238,20 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   bottom: 16px;
   z-index: 20;
   width: 175px;
-  background: #c0c0c0;
+  background: #f0e6c8;
   border-top: 2px solid #fff;
   border-left: 2px solid #fff;
-  border-right: 2px solid #000;
-  border-bottom: 2px solid #000;
-  box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080;
+  border-right: 2px solid #3a3020;
+  border-bottom: 2px solid #3a3020;
+  box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
   padding: 2px;
 }
 .tips-widget.minimised {
   width: auto;
 }
 .tips-title {
-  background: linear-gradient(to right, #000080, #1084d0);
-  color: #fff;
+  background: linear-gradient(to right, #c8a951, #e6c85a);
+  color: #000;
   padding: 2px 4px;
   font-weight: bold;
   font-size: 10px;
@@ -257,15 +264,18 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   width: 20px;
   min-width: 20px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0;
   margin: 0;
-  line-height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
 }
 .tips-toggle:active {
   width: 20px;
   min-width: 20px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0;
 }
 .tips-body {
   padding: 6px;
@@ -277,8 +287,8 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   display: flex;
   justify-content: center;
   background: #fff;
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
+  border-top: 1px solid #a08030;
+  border-left: 1px solid #a08030;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   margin-bottom: 5px;
@@ -289,8 +299,8 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   align-items: center;
   gap: 4px;
   background: #fff;
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
+  border-top: 1px solid #a08030;
+  border-left: 1px solid #a08030;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   cursor: pointer;
@@ -352,135 +362,151 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   }
 }
 </style>
-<div class="dashboard-shell">
-  <div>
-    <h1>Dogelytics Dashboard</h1>
-    <p style="text-align: center;">
-      Check a Dogecoin wallet balance.
-    </p>
-    {{if .ShowAdminLink}}
-    <div class="links">
-      <a href="{{.AdminURL}}">Open admin UI</a>
+<body>
+<div class="dashboard-desktop">
+  <div class="container dashboard-window">
+    <div class="window-title">
+      <span>Dogelytics</span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
     </div>
-    {{end}}
+    <div class="window-content">
+      <h1>Dogelytics Dashboard</h1>
+      <p style="text-align: center;">
+        Check a Dogecoin wallet balance.
+      </p>
+      {{if .ShowAdminLink}}
+      <div class="links">
+        <a href="{{.AdminURL}}">Open admin UI</a>
+      </div>
+      {{end}}
+    </div>
   </div>
 
-  <div class="dashboard-card">
-    <h2>Wallet Checker</h2>
-    <form id="wallet-checker-form" class="wallet-checker-form">
-      <label class="wallet-checker-label">
-        Dogecoin wallet address
-        <input class="wallet-checker-input" type="text" id="wallet-address" name="address" placeholder="D..." autocomplete="off" required>
-      </label>
-      <div class="wallet-checker-actions">
-        <button class="wallet-checker-submit" type="submit">Check Balance</button>
-        <label class="wallet-checker-currency-label">
-          Currency
-          <span class="wallet-checker-select-wrap">
-            <select class="wallet-checker-currency" id="wallet-currency" name="currency">
-              <option value="aed">AED (AED)</option>
-              <option value="aud">AUD ($)</option>
-              <option value="brl">BRL (R$)</option>
-              <option value="cad">CAD ($)</option>
-              <option value="chf">CHF (CHF)</option>
-              <option value="cny">CNY (¥)</option>
-              <option value="doge">DOGE (Ð)</option>
-              <option value="eur">EUR (€)</option>
-              <option value="gbp">GBP (£)</option>
-              <option value="hkd">HKD ($)</option>
-              <option value="idr">IDR (Rp)</option>
-              <option value="inr">INR (₹)</option>
-              <option value="jpy">JPY (¥)</option>
-              <option value="krw">KRW (₩)</option>
-              <option value="mxn">MXN ($)</option>
-              <option value="nok">NOK (kr)</option>
-              <option value="nzd">NZD ($)</option>
-              <option value="pln">PLN (zl)</option>
-              <option value="sek">SEK (kr)</option>
-              <option value="sgd">SGD ($)</option>
-              <option value="try">TRY (₺)</option>
-              <option value="usd" selected>USD ($)</option>
-              <option value="zar">ZAR (R)</option>
-            </select>
-            <span class="wallet-checker-select-arrow" aria-hidden="true">v</span>
-          </span>
+  <div class="container dashboard-window">
+    <div class="window-title">
+      <span>Wallet Checker</span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+    </div>
+    <div class="window-content">
+      <form id="wallet-checker-form" class="wallet-checker-form">
+        <label class="wallet-checker-label">
+          Dogecoin wallet address
+          <input class="wallet-checker-input" type="text" id="wallet-address" name="address" placeholder="D..." autocomplete="off" required>
         </label>
-      </div>
-    </form>
-    <div id="wallet-status" class="dashboard-status" aria-live="polite"></div>
-    <div id="wallet-results" class="dashboard-balance-grid" hidden>
-      <div class="dashboard-balance-item">
-        <div class="dashboard-balance-label">Current</div>
-        <div id="balance-current" class="dashboard-balance-value">-</div>
-        <div id="balance-current-converted" class="dashboard-balance-detail"></div>
-      </div>
-      <div class="dashboard-balance-item">
-        <div class="dashboard-balance-label">Available</div>
-        <div id="balance-available" class="dashboard-balance-value">-</div>
-        <div id="balance-available-converted" class="dashboard-balance-detail"></div>
-      </div>
-      <div class="dashboard-balance-item">
-        <div class="dashboard-balance-label">Incoming</div>
-        <div id="balance-incoming" class="dashboard-balance-value">-</div>
-        <div id="balance-incoming-converted" class="dashboard-balance-detail"></div>
-      </div>
-      <div class="dashboard-balance-item">
-        <div class="dashboard-balance-label">Outgoing</div>
-        <div id="balance-outgoing" class="dashboard-balance-value">-</div>
-        <div id="balance-outgoing-converted" class="dashboard-balance-detail"></div>
+        <div class="wallet-checker-actions">
+          <button class="wallet-checker-submit" type="submit">Check Balance</button>
+          <label class="wallet-checker-currency-label">
+            Currency
+            <span class="wallet-checker-select-wrap">
+              <select class="wallet-checker-currency" id="wallet-currency" name="currency">
+                <option value="aed">AED (AED)</option>
+                <option value="aud">AUD ($)</option>
+                <option value="brl">BRL (R$)</option>
+                <option value="cad">CAD ($)</option>
+                <option value="chf">CHF (CHF)</option>
+                <option value="cny">CNY (¥)</option>
+                <option value="doge">DOGE (Ð)</option>
+                <option value="eur">EUR (€)</option>
+                <option value="gbp">GBP (£)</option>
+                <option value="hkd">HKD ($)</option>
+                <option value="idr">IDR (Rp)</option>
+                <option value="inr">INR (₹)</option>
+                <option value="jpy">JPY (¥)</option>
+                <option value="krw">KRW (₩)</option>
+                <option value="mxn">MXN ($)</option>
+                <option value="nok">NOK (kr)</option>
+                <option value="nzd">NZD ($)</option>
+                <option value="pln">PLN (zl)</option>
+                <option value="sek">SEK (kr)</option>
+                <option value="sgd">SGD ($)</option>
+                <option value="try">TRY (₺)</option>
+                <option value="usd" selected>USD ($)</option>
+                <option value="zar">ZAR (R)</option>
+              </select>
+              <span class="wallet-checker-select-arrow" aria-hidden="true">v</span>
+            </span>
+          </label>
+        </div>
+      </form>
+      <div id="wallet-status" class="dashboard-status" aria-live="polite"></div>
+      <div id="wallet-results" class="dashboard-balance-grid" hidden>
+        <div class="dashboard-balance-item">
+          <div class="dashboard-balance-label">Current</div>
+          <div id="balance-current" class="dashboard-balance-value">-</div>
+          <div id="balance-current-converted" class="dashboard-balance-detail"></div>
+        </div>
+        <div class="dashboard-balance-item">
+          <div class="dashboard-balance-label">Available</div>
+          <div id="balance-available" class="dashboard-balance-value">-</div>
+          <div id="balance-available-converted" class="dashboard-balance-detail"></div>
+        </div>
+        <div class="dashboard-balance-item">
+          <div class="dashboard-balance-label">Incoming</div>
+          <div id="balance-incoming" class="dashboard-balance-value">-</div>
+          <div id="balance-incoming-converted" class="dashboard-balance-detail"></div>
+        </div>
+        <div class="dashboard-balance-item">
+          <div class="dashboard-balance-label">Outgoing</div>
+          <div id="balance-outgoing" class="dashboard-balance-value">-</div>
+          <div id="balance-outgoing-converted" class="dashboard-balance-detail"></div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="dashboard-card">
-    <h2>Stats</h2>
-    <div class="dashboard-section">
-      <h3>Wallets</h3>
-      <div class="dashboard-grid">
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-label">Total wallets checked (24h)</div>
-          <div id="stat-wallets-24h" class="dashboard-stat-value">-</div>
-        </div>
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-label">Unique wallets checked (24h)</div>
-          <div id="stat-unique-wallets-24h" class="dashboard-stat-value">-</div>
-        </div>
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-label">Total wallets checked</div>
-          <div id="stat-total-wallets" class="dashboard-stat-value">-</div>
-        </div>
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-label">Unique wallets checked</div>
-          <div id="stat-unique-wallets" class="dashboard-stat-value">-</div>
+  <div class="container dashboard-window">
+    <div class="window-title">
+      <span>Stats</span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+    </div>
+    <div class="window-content">
+      <div class="dashboard-section">
+        <h3>Wallets</h3>
+        <div class="dashboard-grid">
+          <div class="dashboard-stat-card">
+            <div class="dashboard-stat-label">Total wallets checked (24h)</div>
+            <div id="stat-wallets-24h" class="dashboard-stat-value">-</div>
+          </div>
+          <div class="dashboard-stat-card">
+            <div class="dashboard-stat-label">Unique wallets checked (24h)</div>
+            <div id="stat-unique-wallets-24h" class="dashboard-stat-value">-</div>
+          </div>
+          <div class="dashboard-stat-card">
+            <div class="dashboard-stat-label">Total wallets checked</div>
+            <div id="stat-total-wallets" class="dashboard-stat-value">-</div>
+          </div>
+          <div class="dashboard-stat-card">
+            <div class="dashboard-stat-label">Unique wallets checked</div>
+            <div id="stat-unique-wallets" class="dashboard-stat-value">-</div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="dashboard-section">
-      <h3>Blockchain</h3>
-      <div class="dashboard-grid">
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-label">Indexed Height</div>
-          <div class="dashboard-stat-progress">
-            <span id="stat-indexed-percent" class="dashboard-stat-value">-</span>
-            <span id="stat-indexed-detail" class="dashboard-stat-detail"></span>
+      <div class="dashboard-section">
+        <h3>Blockchain</h3>
+        <div class="dashboard-grid">
+          <div class="dashboard-stat-card">
+            <div class="dashboard-stat-label">Indexed Height</div>
+            <div class="dashboard-stat-progress">
+              <span id="stat-indexed-percent" class="dashboard-stat-value">-</span>
+              <span id="stat-indexed-detail" class="dashboard-stat-detail"></span>
+            </div>
           </div>
-        </div>
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-label">Dogecoin Core Height</div>
-          <div class="dashboard-stat-progress">
-            <span id="stat-core-height" class="dashboard-stat-value">-</span>
-            <span id="stat-core-detail" class="dashboard-stat-detail"></span>
+          <div class="dashboard-stat-card">
+            <div class="dashboard-stat-label">Dogecoin Core Height</div>
+            <div class="dashboard-stat-progress">
+              <span id="stat-core-height" class="dashboard-stat-value">-</span>
+              <span id="stat-core-detail" class="dashboard-stat-detail"></span>
+            </div>
           </div>
         </div>
       </div>
+      <div id="stats-status" class="dashboard-status" aria-live="polite"></div>
     </div>
-    <div id="stats-status" class="dashboard-status" aria-live="polite"></div>
   </div>
-</div>
 
-<div class="dashboard-actions">
-  <a class="docs-button" href="/docs">docs</a>
+  <div class="dashboard-actions">
+    <a class="docs-button" href="/docs">docs</a>
 {{if .ShowTipsWidget}}
 <script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>
 <div id="tips-widget" class="tips-widget">
@@ -501,6 +527,7 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   </div>
 </div>
 {{end}}
+  </div>
 </div>
 
 <script>
@@ -910,7 +937,9 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   })();
 </script>
 {{end}}
-`+htmlFooter, data)
+</body>
+</html>
+`, data)
 }
 
 // HandleDashboardBalance serves the dashboard balance lookup JSON.

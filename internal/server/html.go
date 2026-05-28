@@ -11,7 +11,7 @@ const htmlStyles = `
   
   body {
     font-family: "MS Sans Serif", Tahoma, Arial, sans-serif;
-    background: #008080;
+    background: #2b2b2b;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -22,20 +22,20 @@ const htmlStyles = `
   }
   
   .container {
-    background: #c0c0c0;
+    background: #f0e6c8;
     border-top: 2px solid #fff;
     border-left: 2px solid #fff;
-    border-right: 2px solid #000;
-    border-bottom: 2px solid #000;
-    box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080;
+    border-right: 2px solid #3a3020;
+    border-bottom: 2px solid #3a3020;
+    box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
     padding: 2px;
     max-width: 900px;
     width: 100%;
   }
   
   .window-title {
-    background: linear-gradient(to right, #000080, #1084d0);
-    color: #fff;
+    background: linear-gradient(to right, #c8a951, #e6c85a);
+    color: #000;
     padding: 3px 5px;
     font-weight: bold;
     font-size: 11px;
@@ -46,7 +46,7 @@ const htmlStyles = `
   }
   
   .window-content {
-    background: #c0c0c0;
+    background: #f0e6c8;
     padding: 12px;
   }
   
@@ -59,12 +59,12 @@ const htmlStyles = `
   }
   
   h2 {
-    color: #fff;
+    color: #000;
     font-size: 13px;
     font-weight: bold;
     margin-bottom: 8px;
     padding: 3px 5px;
-    background: #000080;
+    background: #c8a951;
   }
   
   h3 {
@@ -83,16 +83,16 @@ const htmlStyles = `
   }
   
   a {
-    color: #00f;
+    color: #8b6914;
     text-decoration: underline;
   }
   
   a:hover {
-    color: #f0f;
+    color: #c8a951;
   }
   
   a:visited {
-    color: #800080;
+    color: #6f5410;
   }
   
   form {
@@ -112,11 +112,11 @@ const htmlStyles = `
   input[type="text"] {
     width: 100%;
     padding: 3px 4px;
-    border-top: 1px solid #808080;
-    border-left: 1px solid #808080;
+    border-top: 1px solid #a08030;
+    border-left: 1px solid #a08030;
     border-right: 1px solid #fff;
     border-bottom: 1px solid #fff;
-    box-shadow: inset -1px -1px 0 #c0c0c0, inset 1px 1px 0 #000;
+    box-shadow: inset -1px -1px 0 #f0e6c8, inset 1px 1px 0 #000;
     font-size: 11px;
     font-family: inherit;
     background: #fff;
@@ -129,13 +129,13 @@ const htmlStyles = `
   }
   
   button {
-    background: #c0c0c0;
+    background: #f0e6c8;
     color: #000;
     border-top: 2px solid #fff;
     border-left: 2px solid #fff;
-    border-right: 2px solid #000;
-    border-bottom: 2px solid #000;
-    box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080;
+    border-right: 2px solid #3a3020;
+    border-bottom: 2px solid #3a3020;
+    box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
     padding: 4px 12px;
     font-size: 11px;
     font-weight: normal;
@@ -146,20 +146,20 @@ const htmlStyles = `
   }
   
   button:hover {
-    background: #c0c0c0;
+    background: #f0e6c8;
   }
   
   button:active {
-    border-top: 2px solid #000;
-    border-left: 2px solid #000;
+    border-top: 2px solid #3a3020;
+    border-left: 2px solid #3a3020;
     border-right: 2px solid #fff;
     border-bottom: 2px solid #fff;
-    box-shadow: inset -1px -1px 0 #dfdfdf, inset 1px 1px 0 #808080;
+    box-shadow: inset -1px -1px 0 #f8f0d8, inset 1px 1px 0 #a08830;
     padding: 5px 11px 3px 13px;
   }
   
   button.secondary {
-    background: #c0c0c0;
+    background: #f0e6c8;
     padding: 3px 8px;
     font-size: 11px;
     margin-left: 6px;
@@ -167,7 +167,7 @@ const htmlStyles = `
   }
   
   button.danger {
-    background: #c0c0c0;
+    background: #f0e6c8;
   }
   
   table {
@@ -175,16 +175,16 @@ const htmlStyles = `
     border-collapse: collapse;
     margin-top: 8px;
     background: #fff;
-    border-top: 1px solid #808080;
-    border-left: 1px solid #808080;
+    border-top: 1px solid #a08030;
+    border-left: 1px solid #a08030;
     border-right: 1px solid #fff;
     border-bottom: 1px solid #fff;
     font-size: 11px;
   }
   
   th {
-    background: #000080;
-    color: #fff;
+    background: #c8a951;
+    color: #000;
     padding: 4px;
     text-align: left;
     font-weight: bold;
@@ -193,21 +193,11 @@ const htmlStyles = `
   
   td {
     padding: 4px;
-    border-bottom: 1px solid #c0c0c0;
+    border-bottom: 1px solid #f0e6c8;
   }
   
   tr:last-child td {
     border-bottom: none;
-  }
-  
-  tr:hover {
-    background: #00007f;
-    color: #fff;
-  }
-  
-  tr:hover code {
-    background: #00007f;
-    color: #fff;
   }
   
   code {
@@ -219,8 +209,8 @@ const htmlStyles = `
   
   .token-display {
     background: #fff;
-    border-top: 2px solid #808080;
-    border-left: 2px solid #808080;
+    border-top: 2px solid #a08030;
+    border-left: 2px solid #a08030;
     border-right: 2px solid #fff;
     border-bottom: 2px solid #fff;
     padding: 8px;
@@ -258,7 +248,7 @@ const htmlStyles = `
 
   .copy-status {
     margin-top: 4px;
-    color: #000080;
+    color: #8b6914;
     font-size: 10px;
   }
   
@@ -266,26 +256,26 @@ const htmlStyles = `
     background: #ffffe1;
     border-top: 2px solid #fff;
     border-left: 2px solid #fff;
-    border-right: 2px solid #808080;
-    border-bottom: 2px solid #808080;
+    border-right: 2px solid #a08030;
+    border-bottom: 2px solid #a08030;
     padding: 8px;
     margin: 8px 0;
     font-size: 11px;
   }
   
   .success {
-    background: #c6ffc6;
+    background: #e6f0c8;
   }
   
   .user-badge {
     display: inline-block;
-    background: #c0c0c0;
+    background: #f0e6c8;
     color: #000;
     padding: 2px 8px;
     border-top: 1px solid #fff;
     border-left: 1px solid #fff;
-    border-right: 1px solid #808080;
-    border-bottom: 1px solid #808080;
+    border-right: 1px solid #a08030;
+    border-bottom: 1px solid #a08030;
     font-size: 11px;
     font-weight: bold;
   }
@@ -294,7 +284,7 @@ const htmlStyles = `
     text-align: center;
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 2px groove #808080;
+    border-top: 2px groove #a08030;
   }
   
   .links a {
@@ -329,7 +319,7 @@ const htmlStyles = `
 </style>
 `
 
-const htmlHeader = `<!doctype html>
+const htmlHead = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -342,7 +332,9 @@ const htmlHeader = `<!doctype html>
   <link rel="manifest" href="/favicons/site.webmanifest?v=20260528">
 ` + htmlStyles + `
 </head>
-<body>
+`
+
+const htmlHeader = htmlHead + `<body>
 <div class="container">
   <div class="window-title">
     <span>Dogelytics</span>

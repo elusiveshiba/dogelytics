@@ -209,6 +209,45 @@ curl "http://localhost:4420/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"
 | 401 | `invalid-api-key` | Invalid, expired, or revoked API key |
 | 429 | `rate-limit-exceeded` | Rate limit exceeded |
 
+### GET /conversion
+
+Returns the current DOGE conversion rate for a single target currency code.
+
+**Parameters:**
+- `currency` (required): Currency code such as `usd`, `aud`, or `eur`
+
+**Authentication (optional):** Include an API key via `Authorization: Bearer <key>` or `X-Api-Key: <key>` header for a higher rate limit.
+
+**Example:**
+
+```bash
+curl "http://localhost:4420/conversion?currency=usd"
+```
+
+```json
+{
+  "currency": "usd",
+  "rate": "0.23543210",
+  "source": "coingecko",
+  "cached": false,
+  "fetched_at": "2026-05-28T01:44:00Z",
+  "coingecko_updated_at": "2026-05-28T01:43:20Z"
+}
+```
+
+Conversion rates are sourced from CoinGecko and cached locally in the Dogelytics database for one hour per currency. Dogelytics only refreshes a currency when it is missing from the cache or the cached row is older than one hour.
+
+**Errors:**
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `invalid-currency` | Invalid currency code format |
+| 400 | `unsupported-currency` | Unsupported currency code |
+| 401 | `invalid-api-key` | Invalid, expired, or revoked API key |
+| 429 | `rate-limit-exceeded` | Rate limit exceeded |
+| 502 | `conversion-source-error` | Failed to refresh conversion rate from CoinGecko |
+| 503 | `conversion-cache-unavailable` | Local conversion cache unavailable |
+
 ### GET /health
 
 Returns service status and the current indexed block height.
@@ -234,6 +273,8 @@ All requests are rate-limited per IP. Requests with a valid API key use a separa
 | With API key | 120 requests/minute per key |
 
 These defaults are configurable via `RATELIMIT` and `API_KEY_RATELIMIT`.
+
+Dogelytics uses CoinGecko's public `simple/price` API for conversion data and keeps a local one-hour cache per requested currency to avoid unnecessary upstream calls.
 
 ## User & Key Management
 

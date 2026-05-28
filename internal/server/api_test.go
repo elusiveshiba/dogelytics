@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
+	"github.com/dogeorg/dogelytics/internal/store"
 )
 
 type fakeBalanceStore struct {
@@ -31,6 +33,65 @@ func (f *fakeBalanceStore) GetBalance(_ context.Context, scriptType doge.ScriptT
 
 func (f *fakeBalanceStore) CurrentHeight(context.Context) (int64, error) {
 	return f.height, f.heightErr
+}
+
+type fakeConversionStore struct {
+	getRate                  store.ConversionRate
+	getFound                 bool
+	getErr                   error
+	upsertRate               store.ConversionRate
+	upsertErr                error
+	getCalls                 int
+	upsertCalls              int
+	lastCurrency             string
+	lastMaxAge               time.Duration
+	lastUpsertCurrency       string
+	lastUpsertRate           string
+	lastUpsertFetchedAt      time.Time
+	lastUpsertCoinGeckoStamp *time.Time
+}
+
+func (f *fakeConversionStore) GetFreshConversionRate(_ context.Context, currency string, maxAge time.Duration) (store.ConversionRate, bool, error) {
+	f.getCalls++
+	f.lastCurrency = currency
+	f.lastMaxAge = maxAge
+	return f.getRate, f.getFound, f.getErr
+}
+
+func (f *fakeConversionStore) UpsertConversionRate(_ context.Context, currency string, rate string, fetchedAt time.Time, coingeckoUpdatedAt *time.Time) (store.ConversionRate, error) {
+	f.upsertCalls++
+	f.lastUpsertCurrency = currency
+	f.lastUpsertRate = rate
+	f.lastUpsertFetchedAt = fetchedAt
+	f.lastUpsertCoinGeckoStamp = coingeckoUpdatedAt
+	if f.upsertErr != nil {
+		return store.ConversionRate{}, f.upsertErr
+	}
+	if f.upsertRate.Currency == "" {
+		f.upsertRate = store.ConversionRate{
+			Currency:           currency,
+			Rate:               rate,
+			FetchedAt:          fetchedAt,
+			CoinGeckoUpdatedAt: coingeckoUpdatedAt,
+		}
+	}
+	return f.upsertRate, nil
+}
+
+type fakeConversionClient struct {
+	quote        ConversionQuote
+	err          error
+	calls        int
+	lastCurrency string
+}
+
+func (f *fakeConversionClient) GetRate(_ context.Context, currency string) (ConversionQuote, error) {
+	f.calls++
+	f.lastCurrency = currency
+	if f.err != nil {
+		return ConversionQuote{}, f.err
+	}
+	return f.quote, nil
 }
 
 func TestHandlerRoutesAPIOnly(t *testing.T) {
@@ -142,6 +203,191 @@ func TestHandleBalanceSuccess(t *testing.T) {
 	}
 	if resp.Current != koinu.Koinu(300) {
 		t.Fatalf("unexpected current balance: %v", resp.Current)
+	}
+}
+
+func TestHandleConversionUsesFreshCache(t *testing.T) {
+	cachedAt := time.Now().UTC()
+	updatedAt := cachedAt.Add(-2 * time.Minute)
+	cache := &fakeConversionStore{
+		getFound: true,
+		getRate: store.ConversionRate{
+			Currency:           "usd",
+			Rate:               "0.25",
+			FetchedAt:          cachedAt,
+			CoinGeckoUpdatedAt: &updatedAt,
+		},
+	}
+	client := &fakeConversionClient{}
+
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = cache
+	srv.conversionClient = client
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=USD", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if client.calls != 0 {
+		t.Fatalf("expected no upstream calls, got %d", client.calls)
+	}
+	if cache.lastCurrency != "usd" {
+		t.Fatalf("expected lowercase currency lookup, got %q", cache.lastCurrency)
+	}
+	if cache.lastMaxAge != time.Hour {
+		t.Fatalf("expected 1 hour cache max age, got %v", cache.lastMaxAge)
+	}
+
+	var resp config.ConversionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode conversion response: %v", err)
+	}
+	if !resp.Cached || resp.Source != "cache" || resp.Rate != "0.25" {
+		t.Fatalf("unexpected cached conversion response: %+v", resp)
+	}
+}
+
+func TestHandleConversionRefreshesCache(t *testing.T) {
+	updatedAt := time.Now().UTC().Add(-30 * time.Second)
+	cache := &fakeConversionStore{}
+	client := &fakeConversionClient{
+		quote: ConversionQuote{
+			Currency:           "usd",
+			Rate:               "0.2345",
+			CoinGeckoUpdatedAt: &updatedAt,
+		},
+	}
+
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = cache
+	srv.conversionClient = client
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=usd", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if client.calls != 1 {
+		t.Fatalf("expected one upstream call, got %d", client.calls)
+	}
+	if cache.upsertCalls != 1 {
+		t.Fatalf("expected one cache upsert, got %d", cache.upsertCalls)
+	}
+	if cache.lastUpsertCurrency != "usd" || cache.lastUpsertRate != "0.2345" {
+		t.Fatalf("unexpected upsert inputs: currency=%q rate=%q", cache.lastUpsertCurrency, cache.lastUpsertRate)
+	}
+
+	var resp config.ConversionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode conversion response: %v", err)
+	}
+	if resp.Cached || resp.Source != "coingecko" || resp.Rate != "0.2345" {
+		t.Fatalf("unexpected refreshed conversion response: %+v", resp)
+	}
+}
+
+func TestHandleConversionInvalidCurrency(t *testing.T) {
+	cache := &fakeConversionStore{}
+	client := &fakeConversionClient{}
+
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = cache
+	srv.conversionClient = client
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=us$", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if cache.getCalls != 0 || client.calls != 0 {
+		t.Fatalf("expected no cache or upstream calls for invalid currency")
+	}
+
+	var resp config.ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if resp.Error != "invalid-currency" {
+		t.Fatalf("unexpected error response: %+v", resp)
+	}
+}
+
+func TestHandleConversionUnsupportedCurrency(t *testing.T) {
+	cache := &fakeConversionStore{}
+	client := &fakeConversionClient{err: ErrUnsupportedCurrency}
+
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = cache
+	srv.conversionClient = client
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=zzz", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+
+	var resp config.ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if resp.Error != "unsupported-currency" {
+		t.Fatalf("unexpected error response: %+v", resp)
+	}
+}
+
+func TestHandleConversionUpstreamFailure(t *testing.T) {
+	cache := &fakeConversionStore{}
+	client := &fakeConversionClient{err: errors.New("boom")}
+
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = cache
+	srv.conversionClient = client
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=usd", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502, got %d", rec.Code)
+	}
+
+	var resp config.ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if resp.Error != "conversion-source-error" {
+		t.Fatalf("unexpected error response: %+v", resp)
+	}
+}
+
+func TestHandleConversionWithoutCache(t *testing.T) {
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = nil
+	srv.conversionClient = &fakeConversionClient{}
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=usd", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+
+	var resp config.ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if resp.Error != "conversion-cache-unavailable" {
+		t.Fatalf("unexpected error response: %+v", resp)
 	}
 }
 

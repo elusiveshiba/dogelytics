@@ -1,6 +1,10 @@
 package config
 
-import "github.com/dogeorg/doge/koinu"
+import (
+	"time"
+
+	"github.com/dogeorg/doge/koinu"
+)
 
 // BalanceResponse represents the balance information for a Dogecoin address
 type BalanceResponse struct {
@@ -14,4 +18,14 @@ type BalanceResponse struct {
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
+}
+
+// ConversionResponse represents a DOGE conversion quote for a single currency.
+type ConversionResponse struct {
+	Currency           string     `json:"currency"`
+	Rate               string     `json:"rate"`
+	Source             string     `json:"source"`
+	Cached             bool       `json:"cached"`
+	FetchedAt          time.Time  `json:"fetched_at"`
+	CoinGeckoUpdatedAt *time.Time `json:"coingecko_updated_at,omitempty"`
 }

@@ -17,21 +17,25 @@ type BalanceStore interface {
 
 // Server handles HTTP requests for the API and optional UI surfaces.
 type Server struct {
-	indexerStore BalanceStore
-	authStore    *store.Store
-	config       *config.Config
-	ipLimiter    *RateLimiter
-	apiLimiter   *RateLimiter
+	indexerStore     BalanceStore
+	authStore        *store.Store
+	conversionStore  ConversionStore
+	conversionClient ConversionClient
+	config           *config.Config
+	ipLimiter        *RateLimiter
+	apiLimiter       *RateLimiter
 }
 
 // NewServer creates a new Server instance.
 func NewServer(indexerStore BalanceStore, authStore *store.Store, cfg *config.Config, ipLimiter *RateLimiter, apiLimiter *RateLimiter) *Server {
 	return &Server{
-		indexerStore: indexerStore,
-		authStore:    authStore,
-		config:       cfg,
-		ipLimiter:    ipLimiter,
-		apiLimiter:   apiLimiter,
+		indexerStore:     indexerStore,
+		authStore:        authStore,
+		conversionStore:  authStore,
+		conversionClient: NewCoinGeckoClient(nil),
+		config:           cfg,
+		ipLimiter:        ipLimiter,
+		apiLimiter:       apiLimiter,
 	}
 }
 

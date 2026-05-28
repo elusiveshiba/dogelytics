@@ -12,6 +12,7 @@ func (s *Server) APIHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.HandleHealth)
 	mux.HandleFunc("/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleBalance)))
+	mux.HandleFunc("/conversion", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleConversion)))
 
 	return mux
 }
@@ -51,6 +52,7 @@ func (s *Server) AdminHandler() http.Handler {
 func (s *Server) DashboardHandler() http.Handler {
 	mux := http.NewServeMux()
 	registerFaviconRoutes(mux)
+	mux.HandleFunc("/docs", s.HandleGETDocs)
 	mux.HandleFunc("/", s.HandleGETDashboard)
 	mux.HandleFunc("/api/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardBalance)))
 	mux.HandleFunc("/api/dashboard-stats", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardStats)))

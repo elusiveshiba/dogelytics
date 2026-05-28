@@ -86,6 +86,29 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 .dashboard-status.error {
   color: #8b0000;
 }
+.docs-button {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: inline-block;
+  background: #c0c0c0;
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
+  border-right: 2px solid #000;
+  border-bottom: 2px solid #000;
+  box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080;
+  color: #000;
+  font-weight: bold;
+  padding: 5px 8px;
+  text-decoration: none;
+}
+.docs-button:active {
+  border-top-color: #000;
+  border-left-color: #000;
+  border-right-color: #fff;
+  border-bottom-color: #fff;
+}
 .tips-widget {
   position: fixed;
   right: 16px;
@@ -198,6 +221,10 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
     bottom: 12px;
     width: auto;
   }
+  .docs-button {
+    left: 12px;
+    bottom: 12px;
+  }
 }
 </style>
 <div class="dashboard-shell">
@@ -266,6 +293,8 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
     <div id="stats-status" class="dashboard-status" aria-live="polite"></div>
   </div>
 </div>
+
+<a class="docs-button" href="/docs">docs</a>
 
 {{if .ShowTipsWidget}}
 <script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>

@@ -56,6 +56,9 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "Open admin UI") {
 		t.Fatalf("expected admin UI link in %q", body)
 	}
+	if !strings.Contains(body, `class="docs-button" href="/docs">docs</a>`) {
+		t.Fatalf("expected docs button in %q", body)
+	}
 	if !strings.Contains(body, "Such coffee?") {
 		t.Fatalf("expected tips widget in %q", body)
 	}
@@ -76,6 +79,41 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	}
 	if !strings.Contains(body, "applyMinimised(true)") {
 		t.Fatalf("expected tips widget to start minimised in %q", body)
+	}
+}
+
+func TestDashboardDocsRoute(t *testing.T) {
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{
+		CorsOrigin:        "*",
+		EnableDashboardUI: true,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/docs", nil)
+	rec := httptest.NewRecorder()
+	srv.DashboardHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	for _, want := range []string{
+		"Dogelytics API Docs",
+		"https://api.dogelytics.com",
+		"GET /balance",
+		"GET /conversion",
+		"currency=usd",
+		"cached row is older than one hour",
+		`class="dashboard-button" href="/">dashboard</a>`,
+		"Authorization: Bearer YOUR_API_KEY",
+		"GET /health",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected docs page to contain %q in %q", want, body)
+		}
+	}
+	if strings.Contains(body, "Back to dashboard") {
+		t.Fatalf("did not expect old back link in %q", body)
 	}
 }
 

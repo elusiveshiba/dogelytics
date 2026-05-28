@@ -142,6 +142,14 @@ func openAuthStore(ctx context.Context, cfg *config.Config) (*store.Store, error
 		_ = authStore.Close()
 		return nil, nil
 	}
+	if err := authStore.EnsureConversionRatesSchema(); err != nil {
+		if cfg.EnableAdminUI {
+			return nil, err
+		}
+		log.Printf("Dogelytics conversion cache schema unavailable, continuing without auth-backed features: %v", err)
+		_ = authStore.Close()
+		return nil, nil
+	}
 
 	return authStore, nil
 }

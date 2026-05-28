@@ -406,6 +406,31 @@ func TestHandleConversionWithoutCache(t *testing.T) {
 	}
 }
 
+func TestHandleConversionSupportsDogeCurrency(t *testing.T) {
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = nil
+	srv.conversionClient = nil
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=DOGE", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp config.ConversionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode conversion response: %v", err)
+	}
+	if resp.Currency != "doge" || resp.Rate != "1" || resp.Source != "static" || resp.Cached {
+		t.Fatalf("unexpected DOGE conversion response: %+v", resp)
+	}
+	if resp.FetchedAt.IsZero() {
+		t.Fatalf("expected DOGE conversion response timestamp: %+v", resp)
+	}
+}
+
 func TestDashboardConversionRouteUsesConversionHandler(t *testing.T) {
 	fetchedAt := time.Date(2026, 5, 28, 1, 0, 0, 0, time.UTC)
 	cache := &fakeConversionStore{

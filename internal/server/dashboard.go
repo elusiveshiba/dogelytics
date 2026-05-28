@@ -384,6 +384,7 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
               <option value="cad">CAD ($)</option>
               <option value="chf">CHF (CHF)</option>
               <option value="cny">CNY (¥)</option>
+              <option value="doge">DOGE (Ð)</option>
               <option value="eur">EUR (€)</option>
               <option value="gbp">GBP (£)</option>
               <option value="hkd">HKD ($)</option>
@@ -511,6 +512,7 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
     const walletResults = document.getElementById('wallet-results');
     const statsStatus = document.getElementById('stats-status');
     const defaultCurrency = 'usd';
+    const currencyStorageKey = 'dogelytics_dashboard_currency';
     const currencyMetadata = {
       aed: { ticker: 'AED', symbol: 'AED' },
       aud: { ticker: 'AUD', symbol: '$' },
@@ -518,6 +520,7 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       cad: { ticker: 'CAD', symbol: '$' },
       chf: { ticker: 'CHF', symbol: 'CHF' },
       cny: { ticker: 'CNY', symbol: '¥' },
+      doge: { ticker: 'DOGE', symbol: 'Ð' },
       eur: { ticker: 'EUR', symbol: '€' },
       gbp: { ticker: 'GBP', symbol: '£' },
       hkd: { ticker: 'HKD', symbol: '$' },
@@ -534,6 +537,48 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       try: { ticker: 'TRY', symbol: '₺' },
       usd: { ticker: 'USD', symbol: '$' },
       zar: { ticker: 'ZAR', symbol: 'R' },
+    };
+    const regionCurrency = {
+      AE: 'aed',
+      AT: 'eur',
+      AU: 'aud',
+      BE: 'eur',
+      BR: 'brl',
+      CA: 'cad',
+      CH: 'chf',
+      CN: 'cny',
+      CY: 'eur',
+      DE: 'eur',
+      EE: 'eur',
+      ES: 'eur',
+      FI: 'eur',
+      FR: 'eur',
+      GB: 'gbp',
+      GR: 'eur',
+      HK: 'hkd',
+      ID: 'idr',
+      IE: 'eur',
+      IN: 'inr',
+      IT: 'eur',
+      JP: 'jpy',
+      KR: 'krw',
+      LT: 'eur',
+      LU: 'eur',
+      LV: 'eur',
+      MT: 'eur',
+      MX: 'mxn',
+      NL: 'eur',
+      NO: 'nok',
+      NZ: 'nzd',
+      PL: 'pln',
+      PT: 'eur',
+      SE: 'sek',
+      SG: 'sgd',
+      SI: 'eur',
+      SK: 'eur',
+      TR: 'try',
+      US: 'usd',
+      ZA: 'zar',
     };
 
     function setText(id, value) {
@@ -625,18 +670,64 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       return normaliseCurrency(currencySelect && currencySelect.value);
     }
 
+    function supportedCurrency(value) {
+      const currency = value ? String(value).trim().toLowerCase() : '';
+      return currencyMetadata[currency] ? currency : '';
+    }
+
+    function regionFromLocale(locale) {
+      const text = locale ? String(locale) : '';
+      if (!text) return '';
+
+      if (window.Intl && Intl.Locale) {
+        try {
+          const parsed = new Intl.Locale(text);
+          if (parsed.region) return parsed.region.toUpperCase();
+        } catch (_) {}
+      }
+
+      const parts = text.replace('_', '-').split('-');
+      for (let i = parts.length - 1; i >= 1; i--) {
+        if (/^[A-Za-z]{2}$/.test(parts[i])) return parts[i].toUpperCase();
+      }
+      return '';
+    }
+
+    function detectedCurrency() {
+      const locales = [];
+      if (navigator.languages && navigator.languages.length) {
+        locales.push.apply(locales, navigator.languages);
+      }
+      if (navigator.language) locales.push(navigator.language);
+      if (window.Intl && Intl.DateTimeFormat) {
+        try {
+          locales.push(Intl.DateTimeFormat().resolvedOptions().locale);
+        } catch (_) {}
+      }
+
+      for (let i = 0; i < locales.length; i++) {
+        const currency = regionCurrency[regionFromLocale(locales[i])];
+        if (supportedCurrency(currency)) return currency;
+      }
+      return defaultCurrency;
+    }
+
     function restoreCurrencySelection() {
       if (!currencySelect) return;
 
+      let saved = '';
       try {
-        const saved = normaliseCurrency(localStorage.getItem('dogelytics_dashboard_currency'));
-        if (currencyMetadata[saved]) currencySelect.value = saved;
+        saved = supportedCurrency(localStorage.getItem(currencyStorageKey));
       } catch (_) {}
+
+      const currency = saved || detectedCurrency();
+      if (supportedCurrency(currency)) currencySelect.value = currency;
+      rememberCurrencySelection(currencySelect.value);
     }
 
     function rememberCurrencySelection(currency) {
       try {
-        localStorage.setItem('dogelytics_dashboard_currency', currency);
+        localStorage.setItem(currencyStorageKey, supportedCurrency(currency) || defaultCurrency);
       } catch (_) {}
     }
 
@@ -761,6 +852,11 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
     });
 
     restoreCurrencySelection();
+    if (currencySelect) {
+      currencySelect.addEventListener('change', function() {
+        rememberCurrencySelection(selectedCurrency());
+      });
+    }
     loadDashboardStats();
     window.setInterval(function() {
       loadDashboardStats({ autoRefresh: true });

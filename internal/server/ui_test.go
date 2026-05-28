@@ -80,6 +80,7 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 		`class="wallet-checker-select-wrap"`,
 		`class="wallet-checker-select-arrow"`,
 		`<option value="aud">AUD ($)</option>`,
+		`<option value="doge">DOGE (Ð)</option>`,
 		`<option value="gbp">GBP (£)</option>`,
 		`<option value="usd" selected>USD ($)</option>`,
 		`id="balance-current-converted"`,
@@ -89,6 +90,11 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 		"/api/conversion?currency=",
 		"formatConvertedBalance",
 		"conversionUnavailableLine",
+		"dogelytics_dashboard_currency",
+		"detectedCurrency",
+		"regionCurrency",
+		"navigator.languages",
+		"currencySelect.addEventListener('change'",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected dashboard conversion UI to contain %q in %q", want, body)
@@ -209,6 +215,9 @@ func TestDashboardDocsRoute(t *testing.T) {
 	}
 	if strings.Contains(body, "Back to dashboard") {
 		t.Fatalf("did not expect old back link in %q", body)
+	}
+	if strings.Contains(body, "currency=doge") || strings.Contains(body, "source <code>doge</code>") {
+		t.Fatalf("did not expect DOGE easter egg to be documented in %q", body)
 	}
 	if strings.Contains(body, `"height": 5900000`) || strings.Contains(body, "indexed_percent") || strings.Contains(body, "core_synced_percent") {
 		t.Fatalf("did not expect legacy or calculated health fields in %q", body)

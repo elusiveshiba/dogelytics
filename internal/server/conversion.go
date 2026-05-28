@@ -36,18 +36,21 @@ func (s *Server) HandleConversion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	currency, errCode, message := normaliseConversionCurrency(r.URL.Query().Get("currency"))
+	if errCode != "" {
+		s.sendError(w, http.StatusBadRequest, errCode, message)
+		return
+	}
+	if currency == "doge" {
+		s.sendJSON(w, http.StatusOK, staticDogeConversionResponse())
+		return
+	}
 	if s.conversionStore == nil {
 		s.sendError(w, http.StatusServiceUnavailable, "conversion-cache-unavailable", "Conversion cache is unavailable")
 		return
 	}
 	if s.conversionClient == nil {
 		s.sendError(w, http.StatusBadGateway, "conversion-source-error", "Failed to fetch conversion rate")
-		return
-	}
-
-	currency, errCode, message := normaliseConversionCurrency(r.URL.Query().Get("currency"))
-	if errCode != "" {
-		s.sendError(w, http.StatusBadRequest, errCode, message)
 		return
 	}
 
@@ -95,6 +98,16 @@ func normaliseConversionCurrency(raw string) (string, string, string) {
 		return "", "invalid-currency", "Invalid currency code"
 	}
 	return currency, "", ""
+}
+
+func staticDogeConversionResponse() config.ConversionResponse {
+	return config.ConversionResponse{
+		Currency:  "doge",
+		Rate:      "1",
+		Source:    "static",
+		Cached:    false,
+		FetchedAt: time.Now().UTC(),
+	}
 }
 
 func conversionResponseFromCache(rate store.ConversionRate) config.ConversionResponse {

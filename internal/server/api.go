@@ -30,10 +30,16 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.sendJSON(w, http.StatusOK, HealthResponse{
-		OK:     true,
-		Height: height,
-	})
+	response := HealthResponse{
+		OK:            true,
+		IndexerHeight: height,
+	}
+	if progress, ok := s.loadChainProgress(r.Context(), height); ok {
+		response.CoreHeight = progress.CoreHeight
+		response.BlockchainHeight = progress.BlockchainHeight
+	}
+
+	s.sendJSON(w, http.StatusOK, response)
 }
 
 // HandleBalance responds to balance query requests.

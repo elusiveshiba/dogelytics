@@ -135,7 +135,7 @@ func (s *Server) HandleGETDocs(w http.ResponseWriter, r *http.Request) {
   "fetched_at": "2026-05-28T01:44:00Z",
   "coingecko_updated_at": "2026-05-28T01:43:20Z"
 }</code></pre>
-    <p>Rates are sourced from CoinGecko and cached locally for one hour per currency. Dogelytics only refreshes from CoinGecko when a currency is missing from the cache or the cached row is older than one hour.</p>
+    <p>Rates are sourced from CoinGecko and cached locally for one hour per currency. Dogelytics only refreshes from CoinGecko when a currency is missing from the cache or the cached row is older than one hour. The dashboard uses the same conversion data through its same-origin <code>/api/conversion</code> route.</p>
   </div>
 
   <div class="docs-card">
@@ -149,12 +149,24 @@ func (s *Server) HandleGETDocs(w http.ResponseWriter, r *http.Request) {
 
   <div class="docs-card">
     <h2>GET /health</h2>
-    <p>Returns service status and the current indexed block height.</p>
+    <p>Returns service status and the raw sync heights used to compare the indexer, local Dogecoin Core node, and best known blockchain height.</p>
     <pre class="docs-code"><code>curl "https://api.dogelytics.com/health"</code></pre>
     <pre class="docs-code"><code>{
   "ok": true,
-  "height": 5900000
+  "indexer_height": 5900000,
+  "core_height": 6224976,
+  "blockchain_height": 6224976
 }</code></pre>
+    <p><code>indexer_height</code> is the last block indexed by Dogelytics, <code>core_height</code> is the local Dogecoin Core block height, and <code>blockchain_height</code> is Core's best known chain tip from headers.</p>
+    <p>If Dogecoin Core RPC is not configured or is unavailable, this endpoint still returns <code>ok</code> and <code>indexer_height</code>, but omits <code>core_height</code> and <code>blockchain_height</code>.</p>
+  </div>
+
+  <div class="docs-card">
+    <h2>Dashboard Helper APIs</h2>
+    <p>The dashboard host exposes same-origin helper routes for browser use. <code>/api/balance</code> and <code>/api/conversion</code> mirror the public API responses, while <code>/api/dashboard-stats</code> returns public usage counters and sync metrics for the dashboard.</p>
+    <pre class="docs-code"><code>GET /api/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8
+GET /api/conversion?currency=usd
+GET /api/dashboard-stats</code></pre>
   </div>
 
   <div class="docs-card">
@@ -163,10 +175,12 @@ func (s *Server) HandleGETDocs(w http.ResponseWriter, r *http.Request) {
       <tr><th>Status</th><th>Error</th><th>Meaning</th></tr>
       <tr><td>400</td><td><code>missing-parameter</code></td><td>The <code>address</code> query parameter is missing.</td></tr>
       <tr><td>400</td><td><code>invalid-address</code></td><td>The address is not a valid Dogecoin address.</td></tr>
+      <tr><td>400</td><td><code>unsupported-address</code></td><td>The address type is not supported.</td></tr>
       <tr><td>400</td><td><code>invalid-currency</code></td><td>The currency code format is invalid.</td></tr>
       <tr><td>400</td><td><code>unsupported-currency</code></td><td>The requested currency is not available from CoinGecko.</td></tr>
       <tr><td>401</td><td><code>invalid-api-key</code></td><td>The supplied API key is invalid, expired, or revoked.</td></tr>
       <tr><td>429</td><td><code>rate-limit-exceeded</code></td><td>The rate limit was exceeded. The response message includes when to try again.</td></tr>
+      <tr><td>500</td><td><code>database-error</code></td><td>Dogelytics could not read indexer data.</td></tr>
       <tr><td>502</td><td><code>conversion-source-error</code></td><td>Dogelytics could not refresh a conversion rate from CoinGecko.</td></tr>
       <tr><td>503</td><td><code>conversion-cache-unavailable</code></td><td>The local conversion cache is unavailable.</td></tr>
     </table>

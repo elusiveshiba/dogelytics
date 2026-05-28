@@ -5,7 +5,7 @@ A lightweight REST API service that provides Dogecoin wallet balance information
 ## Features
 
 - **Balance Queries**: Incoming, available, outgoing, and current balance for any Dogecoin address
-- **Health Checks**: Monitor indexer status and current block height
+- **Health Checks**: Monitor indexer, Dogecoin Core, and blockchain sync heights
 - **Rate Limiting**: Per-IP and per-API key rate limiting
 - **API Key Management**: User accounts with API key generation, revocation, and expiry
 - **Usage Statistics**: Real-time analytics with interactive charts and filtering
@@ -162,7 +162,7 @@ Configuration is loaded in this order (later sources override earlier ones):
 | `DOGELYTICS_DBURL` | `-dogelytics-dburl` | PostgreSQL URL for dogelytics database (users, keys, sessions) | `postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable` |
 | `BIND` | `-bind` | HTTP server bind address | `localhost:4420` |
 | `CORS` | `-cors` | CORS allowed origin (`*` for all) | `*` |
-| `CORE_RPC_URL` | `-core-rpc-url` | Dogecoin Core RPC URL for dashboard blockchain height | _(empty)_ |
+| `CORE_RPC_URL` | `-core-rpc-url` | Dogecoin Core RPC URL for health and dashboard blockchain sync heights | _(empty)_ |
 | `CORE_RPC_USER` | `-core-rpc-user` | Dogecoin Core RPC username | _(empty)_ |
 | `CORE_RPC_PASSWORD` | `-core-rpc-password` | Dogecoin Core RPC password | _(empty)_ |
 | `CONFIRMATIONS` | `-confirmations` | Confirmations required for available balance | `6` |
@@ -180,9 +180,19 @@ Configuration is loaded in this order (later sources override earlier ones):
 
 ## API Reference
 
+### API Hosts
+
+Production deployments normally expose the public API at `https://api.dogelytics.com`. Local development uses the API listener, which defaults to `http://localhost:4420`.
+
+When the dashboard UI is enabled, it also exposes same-origin helper routes under its own host:
+
+- `GET /api/balance` mirrors `GET /balance` for dashboard wallet checks.
+- `GET /api/conversion` mirrors `GET /conversion` for dashboard currency conversions.
+- `GET /api/dashboard-stats` returns public dashboard usage and sync metrics.
+
 ### GET /balance
 
-Returns the balance for a Dogecoin address. All values are in Koinu (1 DOGE = 100,000,000 Koinu) formatted as decimal strings.
+Returns the balance for a Dogecoin address. All values are decimal DOGE strings.
 
 **Parameters:**
 - `address` (required): Dogecoin address
@@ -208,9 +218,12 @@ curl "http://localhost:4420/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"
 
 | Status | Error | Description |
 |--------|-------|-------------|
+| 400 | `missing-parameter` | Missing `address` query parameter |
 | 400 | `invalid-address` | Invalid Dogecoin address format |
+| 400 | `unsupported-address` | Unsupported Dogecoin address type |
 | 401 | `invalid-api-key` | Invalid, expired, or revoked API key |
 | 429 | `rate-limit-exceeded` | Rate limit exceeded |
+| 500 | `database-error` | Failed to read balance data |
 
 ### GET /conversion
 
@@ -244,6 +257,7 @@ Conversion rates are sourced from CoinGecko and cached locally in the Dogelytics
 
 | Status | Error | Description |
 |--------|-------|-------------|
+| 400 | `missing-parameter` | Missing `currency` query parameter |
 | 400 | `invalid-currency` | Invalid currency code format |
 | 400 | `unsupported-currency` | Unsupported currency code |
 | 401 | `invalid-api-key` | Invalid, expired, or revoked API key |
@@ -253,7 +267,7 @@ Conversion rates are sourced from CoinGecko and cached locally in the Dogelytics
 
 ### GET /health
 
-Returns service status and the current indexed block height.
+Returns service status and the raw sync heights used to compare Dogelytics indexing, the local Dogecoin Core node, and the best known blockchain height.
 
 ```bash
 curl "http://localhost:4420/health"
@@ -262,9 +276,23 @@ curl "http://localhost:4420/health"
 ```json
 {
   "ok": true,
-  "height": 5900000
+  "indexer_height": 5900000,
+  "core_height": 6224976,
+  "blockchain_height": 6224976
 }
 ```
+
+- `indexer_height`: last block processed by Dogelytics/indexer data.
+- `core_height`: local Dogecoin Core block height.
+- `blockchain_height`: Dogecoin Core's best known chain tip from headers.
+
+If Dogecoin Core RPC is not configured or is unavailable, `/health` still returns `ok` and `indexer_height`, but omits `core_height` and `blockchain_height`.
+
+**Errors:**
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 500 | `database-error` | Failed to read indexer height |
 
 ### Rate Limiting
 
@@ -278,6 +306,32 @@ All requests are rate-limited per IP. Requests with a valid API key use a separa
 These defaults are configurable via `RATELIMIT` and `API_KEY_RATELIMIT`.
 
 Dogelytics uses CoinGecko's public `simple/price` API for conversion data and keeps a local one-hour cache per requested currency to avoid unnecessary upstream calls.
+
+### Dashboard Helper APIs
+
+These routes are served from the dashboard UI host when `ENABLE_DASHBOARD_UI=true`. They exist so the browser dashboard can call Dogelytics without cross-origin setup:
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/balance?address=<address>` | Same response and errors as `GET /balance` |
+| `GET /api/conversion?currency=<currency>` | Same response and errors as `GET /conversion` |
+| `GET /api/dashboard-stats` | Public dashboard stats, including wallet lookup counters and indexer/Core sync metrics |
+
+Example dashboard stats response:
+
+```json
+{
+  "available": true,
+  "height": 5900000,
+  "core_height": 6224976,
+  "blockchain_height": 6224976,
+  "indexed_percent": 94.7792,
+  "total_wallets_checked": 77,
+  "wallets_checked_last_24h": 12,
+  "unique_wallets_checked": 5,
+  "unique_wallets_last_24h": 3
+}
+```
 
 ## User & Key Management
 

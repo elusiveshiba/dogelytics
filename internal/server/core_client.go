@@ -10,9 +10,15 @@ import (
 	"time"
 )
 
+// CoreState describes the local Core sync height and the best known chain height.
+type CoreState struct {
+	CoreHeight       int64
+	BlockchainHeight int64
+}
+
 // CoreClient reads chain state from Dogecoin Core.
 type CoreClient interface {
-	BlockchainHeight(ctx context.Context) (int64, error)
+	ChainState(ctx context.Context) (CoreState, error)
 }
 
 // CoreRPCClient talks to Dogecoin Core's JSON-RPC API.
@@ -40,8 +46,8 @@ func NewCoreRPCClient(url string, user string, password string, httpClient *http
 	}
 }
 
-// BlockchainHeight returns the best known chain height from Core.
-func (c *CoreRPCClient) BlockchainHeight(ctx context.Context) (int64, error) {
+// ChainState returns the local Core height and the best known chain height.
+func (c *CoreRPCClient) ChainState(ctx context.Context) (CoreState, error) {
 	requestBody := map[string]any{
 		"jsonrpc": "1.0",
 		"id":      "dogelytics",
@@ -51,12 +57,12 @@ func (c *CoreRPCClient) BlockchainHeight(ctx context.Context) (int64, error) {
 
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		return 0, fmt.Errorf("marshal core rpc request: %w", err)
+		return CoreState{}, fmt.Errorf("marshal core rpc request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
 	if err != nil {
-		return 0, fmt.Errorf("create core rpc request: %w", err)
+		return CoreState{}, fmt.Errorf("create core rpc request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if c.user != "" || c.password != "" {
@@ -65,12 +71,12 @@ func (c *CoreRPCClient) BlockchainHeight(ctx context.Context) (int64, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("request core rpc: %w", err)
+		return CoreState{}, fmt.Errorf("request core rpc: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("core rpc returned status %d", resp.StatusCode)
+		return CoreState{}, fmt.Errorf("core rpc returned status %d", resp.StatusCode)
 	}
 
 	var rpcResponse struct {
@@ -81,14 +87,19 @@ func (c *CoreRPCClient) BlockchainHeight(ctx context.Context) (int64, error) {
 		Error any `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&rpcResponse); err != nil {
-		return 0, fmt.Errorf("decode core rpc response: %w", err)
+		return CoreState{}, fmt.Errorf("decode core rpc response: %w", err)
 	}
 	if rpcResponse.Error != nil {
-		return 0, fmt.Errorf("core rpc error: %v", rpcResponse.Error)
+		return CoreState{}, fmt.Errorf("core rpc error: %v", rpcResponse.Error)
 	}
 
-	if rpcResponse.Result.Headers > rpcResponse.Result.Blocks {
-		return rpcResponse.Result.Headers, nil
+	state := CoreState{
+		CoreHeight:       rpcResponse.Result.Blocks,
+		BlockchainHeight: rpcResponse.Result.Blocks,
 	}
-	return rpcResponse.Result.Blocks, nil
+	if rpcResponse.Result.Headers > state.BlockchainHeight {
+		state.BlockchainHeight = rpcResponse.Result.Headers
+	}
+
+	return state, nil
 }

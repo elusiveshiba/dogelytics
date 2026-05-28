@@ -57,6 +57,82 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 .dashboard-card h3 {
   margin-top: 0;
 }
+.wallet-checker-form {
+  display: grid;
+  gap: 10px;
+}
+.wallet-checker-label {
+  display: grid;
+  gap: 6px;
+  font-weight: bold;
+  font-size: 14px;
+}
+.wallet-checker-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 50px;
+  padding: 10px 12px;
+  border-width: 2px;
+  font-size: 24px;
+  line-height: 1.2;
+  font-family: "Courier New", monospace;
+  font-weight: bold;
+}
+.wallet-checker-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wallet-checker-currency-label {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 0;
+}
+.wallet-checker-select-wrap {
+  position: relative;
+  display: inline-block;
+}
+.wallet-checker-currency {
+  min-width: 120px;
+  padding: 4px 24px 4px 6px;
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  border-radius: 0;
+  box-shadow: inset -1px -1px 0 #c0c0c0, inset 1px 1px 0 #000;
+  background: #fff;
+  color: #000;
+  font-size: 11px;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+.wallet-checker-select-arrow {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #c0c0c0;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #808080;
+  border-bottom: 1px solid #808080;
+  box-shadow: inset 1px 1px 0 #dfdfdf;
+  color: #000;
+  font-size: 9px;
+  pointer-events: none;
+}
+.wallet-checker-submit {
+  padding: 6px 12px;
+}
 .dashboard-stat-card {
   background: #fff;
   border-top: 1px solid #808080;
@@ -110,6 +186,11 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   font-size: 14px;
   font-weight: bold;
 }
+.dashboard-balance-detail {
+  color: #666;
+  font-size: 10px;
+  margin-top: 3px;
+}
 .dashboard-status {
   min-height: 18px;
   margin-top: 8px;
@@ -117,6 +198,9 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 }
 .dashboard-status.error {
   color: #8b0000;
+}
+.dashboard-actions {
+  display: contents;
 }
 .docs-button {
   position: fixed;
@@ -247,15 +331,24 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   top: 1px;
 }
 @media (max-width: 640px) {
+  .dashboard-actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+    padding-bottom: 12px;
+  }
   .tips-widget {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
+    position: static;
+    flex: 0 1 auto;
+    max-width: calc(100% - 72px);
     width: auto;
+    margin-left: auto;
   }
   .docs-button {
-    left: 12px;
-    bottom: 12px;
+    position: static;
+    flex: 0 0 auto;
   }
 }
 </style>
@@ -274,30 +367,66 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 
   <div class="dashboard-card">
     <h2>Wallet Checker</h2>
-    <form id="wallet-checker-form">
-      <label>
+    <form id="wallet-checker-form" class="wallet-checker-form">
+      <label class="wallet-checker-label">
         Dogecoin wallet address
-        <input type="text" id="wallet-address" name="address" placeholder="D..." autocomplete="off" required>
+        <input class="wallet-checker-input" type="text" id="wallet-address" name="address" placeholder="D..." autocomplete="off" required>
       </label>
-      <button type="submit">Check Balance</button>
+      <div class="wallet-checker-actions">
+        <button class="wallet-checker-submit" type="submit">Check Balance</button>
+        <label class="wallet-checker-currency-label">
+          Currency
+          <span class="wallet-checker-select-wrap">
+            <select class="wallet-checker-currency" id="wallet-currency" name="currency">
+              <option value="aed">AED (AED)</option>
+              <option value="aud">AUD ($)</option>
+              <option value="brl">BRL (R$)</option>
+              <option value="cad">CAD ($)</option>
+              <option value="chf">CHF (CHF)</option>
+              <option value="cny">CNY (¥)</option>
+              <option value="eur">EUR (€)</option>
+              <option value="gbp">GBP (£)</option>
+              <option value="hkd">HKD ($)</option>
+              <option value="idr">IDR (Rp)</option>
+              <option value="inr">INR (₹)</option>
+              <option value="jpy">JPY (¥)</option>
+              <option value="krw">KRW (₩)</option>
+              <option value="mxn">MXN ($)</option>
+              <option value="nok">NOK (kr)</option>
+              <option value="nzd">NZD ($)</option>
+              <option value="pln">PLN (zl)</option>
+              <option value="sek">SEK (kr)</option>
+              <option value="sgd">SGD ($)</option>
+              <option value="try">TRY (₺)</option>
+              <option value="usd" selected>USD ($)</option>
+              <option value="zar">ZAR (R)</option>
+            </select>
+            <span class="wallet-checker-select-arrow" aria-hidden="true">v</span>
+          </span>
+        </label>
+      </div>
     </form>
     <div id="wallet-status" class="dashboard-status" aria-live="polite"></div>
     <div id="wallet-results" class="dashboard-balance-grid" hidden>
       <div class="dashboard-balance-item">
         <div class="dashboard-balance-label">Current</div>
         <div id="balance-current" class="dashboard-balance-value">-</div>
+        <div id="balance-current-converted" class="dashboard-balance-detail"></div>
       </div>
       <div class="dashboard-balance-item">
         <div class="dashboard-balance-label">Available</div>
         <div id="balance-available" class="dashboard-balance-value">-</div>
+        <div id="balance-available-converted" class="dashboard-balance-detail"></div>
       </div>
       <div class="dashboard-balance-item">
         <div class="dashboard-balance-label">Incoming</div>
         <div id="balance-incoming" class="dashboard-balance-value">-</div>
+        <div id="balance-incoming-converted" class="dashboard-balance-detail"></div>
       </div>
       <div class="dashboard-balance-item">
         <div class="dashboard-balance-label">Outgoing</div>
         <div id="balance-outgoing" class="dashboard-balance-value">-</div>
+        <div id="balance-outgoing-converted" class="dashboard-balance-detail"></div>
       </div>
     </div>
   </div>
@@ -337,10 +466,10 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
           </div>
         </div>
         <div class="dashboard-stat-card">
-          <div class="dashboard-stat-label">Blockchain Height</div>
+          <div class="dashboard-stat-label">Dogecoin Core Height</div>
           <div class="dashboard-stat-progress">
-            <span id="stat-blockchain-height" class="dashboard-stat-value">-</span>
-            <span id="stat-blockchain-detail" class="dashboard-stat-detail"></span>
+            <span id="stat-core-height" class="dashboard-stat-value">-</span>
+            <span id="stat-core-detail" class="dashboard-stat-detail"></span>
           </div>
         </div>
       </div>
@@ -349,8 +478,8 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   </div>
 </div>
 
-<a class="docs-button" href="/docs">docs</a>
-
+<div class="dashboard-actions">
+  <a class="docs-button" href="/docs">docs</a>
 {{if .ShowTipsWidget}}
 <script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>
 <div id="tips-widget" class="tips-widget">
@@ -371,14 +500,41 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   </div>
 </div>
 {{end}}
+</div>
 
 <script>
   (function() {
     const form = document.getElementById('wallet-checker-form');
     const addressInput = document.getElementById('wallet-address');
+    const currencySelect = document.getElementById('wallet-currency');
     const walletStatus = document.getElementById('wallet-status');
     const walletResults = document.getElementById('wallet-results');
     const statsStatus = document.getElementById('stats-status');
+    const defaultCurrency = 'usd';
+    const currencyMetadata = {
+      aed: { ticker: 'AED', symbol: 'AED' },
+      aud: { ticker: 'AUD', symbol: '$' },
+      brl: { ticker: 'BRL', symbol: 'R$' },
+      cad: { ticker: 'CAD', symbol: '$' },
+      chf: { ticker: 'CHF', symbol: 'CHF' },
+      cny: { ticker: 'CNY', symbol: '¥' },
+      eur: { ticker: 'EUR', symbol: '€' },
+      gbp: { ticker: 'GBP', symbol: '£' },
+      hkd: { ticker: 'HKD', symbol: '$' },
+      idr: { ticker: 'IDR', symbol: 'Rp' },
+      inr: { ticker: 'INR', symbol: '₹' },
+      jpy: { ticker: 'JPY', symbol: '¥' },
+      krw: { ticker: 'KRW', symbol: '₩' },
+      mxn: { ticker: 'MXN', symbol: '$' },
+      nok: { ticker: 'NOK', symbol: 'kr' },
+      nzd: { ticker: 'NZD', symbol: '$' },
+      pln: { ticker: 'PLN', symbol: 'zl' },
+      sek: { ticker: 'SEK', symbol: 'kr' },
+      sgd: { ticker: 'SGD', symbol: '$' },
+      try: { ticker: 'TRY', symbol: '₺' },
+      usd: { ticker: 'USD', symbol: '$' },
+      zar: { ticker: 'ZAR', symbol: 'R' },
+    };
 
     function setText(id, value) {
       const element = document.getElementById(id);
@@ -409,6 +565,42 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       return whole + '.' + fraction;
     }
 
+    function normaliseCurrency(value) {
+      const currency = value ? String(value).trim().toLowerCase() : '';
+      return currency || defaultCurrency;
+    }
+
+    function currencyInfo(currency) {
+      const normalised = normaliseCurrency(currency);
+      return currencyMetadata[normalised] || {
+        ticker: normalised.toUpperCase(),
+        symbol: normalised.toUpperCase(),
+      };
+    }
+
+    function formatFiatAmount(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return null;
+
+      const fixed = number.toFixed(2);
+      const parts = fixed.split('.');
+      return formatInteger(parts[0]) + '.' + parts[1];
+    }
+
+    function formatConvertedBalance(balanceValue, rateValue, currency) {
+      const balance = Number(balanceValue);
+      const rate = Number(rateValue);
+      if (!Number.isFinite(balance) || !Number.isFinite(rate)) return null;
+
+      const formatted = formatFiatAmount(balance * rate);
+      if (!formatted) return null;
+      return currencyInfo(currency).symbol + formatted;
+    }
+
+    function conversionUnavailableLine(currency) {
+      return currencyInfo(currency).ticker + ' unavailable';
+    }
+
     function formatPercent(value) {
       const number = Number(value);
       if (!Number.isFinite(number)) return '-';
@@ -429,9 +621,62 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       };
     }
 
-    async function loadDashboardStats() {
-      statsStatus.textContent = 'Loading dashboard stats...';
-      statsStatus.className = 'dashboard-status';
+    function selectedCurrency() {
+      return normaliseCurrency(currencySelect && currencySelect.value);
+    }
+
+    function restoreCurrencySelection() {
+      if (!currencySelect) return;
+
+      try {
+        const saved = normaliseCurrency(localStorage.getItem('dogelytics_dashboard_currency'));
+        if (currencyMetadata[saved]) currencySelect.value = saved;
+      } catch (_) {}
+    }
+
+    function rememberCurrencySelection(currency) {
+      try {
+        localStorage.setItem('dogelytics_dashboard_currency', currency);
+      } catch (_) {}
+    }
+
+    async function fetchConversion(currency) {
+      const response = await fetch('/api/conversion?currency=' + encodeURIComponent(currency));
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.message || 'Failed to load conversion rate');
+      }
+      return payload;
+    }
+
+    function setBalanceResult(name, dogeValue, convertedValue) {
+      setText('balance-' + name, 'Ð' + formatDogeAmount(dogeValue));
+      setText('balance-' + name + '-converted', convertedValue || '');
+    }
+
+    function convertedLine(balanceValue, conversion, currency) {
+      if (!conversion || typeof conversion.rate === 'undefined') {
+        return conversionUnavailableLine(currency);
+      }
+
+      return formatConvertedBalance(
+        balanceValue,
+        conversion.rate,
+        conversion.currency || currency
+      ) || conversionUnavailableLine(currency);
+    }
+
+    let statsRequestInFlight = false;
+
+    async function loadDashboardStats(options) {
+      const autoRefresh = !!(options && options.autoRefresh);
+      if (statsRequestInFlight) return;
+
+      statsRequestInFlight = true;
+      if (!autoRefresh) {
+        statsStatus.textContent = 'Loading dashboard stats...';
+        statsStatus.className = 'dashboard-status';
+      }
 
       try {
         const response = await fetch('/api/dashboard-stats');
@@ -448,12 +693,12 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
         const indexedProgress = formatIndexedProgress(payload.height, payload.blockchain_height);
         setStatProgress('stat-indexed-percent', 'stat-indexed-detail', indexedProgress.main, indexedProgress.detail);
 
-        const blockchainProgress = formatIndexedProgress(payload.blockchain_height, payload.blockchain_height);
+        const coreProgress = formatIndexedProgress(payload.core_height, payload.blockchain_height);
         setStatProgress(
-          'stat-blockchain-height',
-          'stat-blockchain-detail',
-          blockchainProgress.main,
-          blockchainProgress.detail
+          'stat-core-height',
+          'stat-core-detail',
+          coreProgress.main,
+          coreProgress.detail
         );
 
         if (payload.available) {
@@ -466,6 +711,8 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       } catch (error) {
         statsStatus.textContent = error.message || 'Failed to load dashboard stats.';
         statsStatus.className = 'dashboard-status error';
+      } finally {
+        statsRequestInFlight = false;
       }
     }
 
@@ -482,6 +729,9 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
         return;
       }
 
+      const currency = selectedCurrency();
+      rememberCurrencySelection(currency);
+
       try {
         const response = await fetch('/api/balance?address=' + encodeURIComponent(address));
         const payload = await response.json();
@@ -489,20 +739,32 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
           throw new Error(payload.message || 'Failed to look up wallet balance');
         }
 
-        setText('balance-current', 'Ð' + formatDogeAmount(payload.current));
-        setText('balance-available', 'Ð' + formatDogeAmount(payload.available));
-        setText('balance-incoming', 'Ð' + formatDogeAmount(payload.incoming));
-        setText('balance-outgoing', 'Ð' + formatDogeAmount(payload.outgoing));
+        let conversion = null;
+        let conversionUnavailable = false;
+        try {
+          conversion = await fetchConversion(currency);
+        } catch (_) {
+          conversionUnavailable = true;
+        }
+
+        setBalanceResult('current', payload.current, convertedLine(payload.current, conversion, currency));
+        setBalanceResult('available', payload.available, convertedLine(payload.available, conversion, currency));
+        setBalanceResult('incoming', payload.incoming, convertedLine(payload.incoming, conversion, currency));
+        setBalanceResult('outgoing', payload.outgoing, convertedLine(payload.outgoing, conversion, currency));
         walletResults.hidden = false;
-        walletStatus.textContent = 'Balance loaded.';
-        walletStatus.className = 'dashboard-status';
+        walletStatus.textContent = conversionUnavailable ? 'Balance loaded. Conversion unavailable.' : 'Balance loaded.';
+        walletStatus.className = conversionUnavailable ? 'dashboard-status error' : 'dashboard-status';
       } catch (error) {
         walletStatus.textContent = error.message || 'Failed to look up wallet balance.';
         walletStatus.className = 'dashboard-status error';
       }
     });
 
+    restoreCurrencySelection();
     loadDashboardStats();
+    window.setInterval(function() {
+      loadDashboardStats({ autoRefresh: true });
+    }, 60000);
   })();
 </script>
 {{if .ShowTipsWidget}}
@@ -607,25 +869,14 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) populateBlockchainProgress(r *http.Request, response *DashboardStatsResponse) {
-	if s.coreClient == nil {
+	progress, ok := s.loadChainProgress(r.Context(), response.Height)
+	if !ok {
 		return
 	}
 
-	blockchainHeight, err := s.coreClient.BlockchainHeight(r.Context())
-	if err != nil {
-		log.Printf("[Dogelytics] failed to load blockchain height: %v", err)
-		return
-	}
-	if blockchainHeight <= 0 {
-		return
-	}
-
-	response.BlockchainHeight = blockchainHeight
-	indexedPercent := (float64(response.Height) / float64(blockchainHeight)) * 100
-	if indexedPercent > 100 {
-		indexedPercent = 100
-	}
-	response.IndexedPercent = &indexedPercent
+	response.CoreHeight = progress.CoreHeight
+	response.BlockchainHeight = progress.BlockchainHeight
+	response.IndexedPercent = progress.IndexedPercent
 }
 
 func uiURLForPort(r *http.Request, port int) string {

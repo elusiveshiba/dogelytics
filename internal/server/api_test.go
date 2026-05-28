@@ -109,6 +109,7 @@ func TestHandlerRoutesAPIOnly(t *testing.T) {
 func TestHandleHealthSuccess(t *testing.T) {
 	store := &fakeBalanceStore{height: 123}
 	srv := newTestServer(store, &config.Config{CorsOrigin: "*"})
+	srv.coreClient = fakeCoreClient{coreHeight: 900, blockchainHeight: 1000}
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -118,12 +119,26 @@ func TestHandleHealthSuccess(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
+	body := rec.Body.Bytes()
 	var resp HealthResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+	if err := json.Unmarshal(body, &resp); err != nil {
 		t.Fatalf("decode health response: %v", err)
 	}
-	if !resp.OK || resp.Height != 123 {
+	if !resp.OK || resp.IndexerHeight != 123 {
 		t.Fatalf("unexpected health response: %+v", resp)
+	}
+	if resp.CoreHeight != 900 || resp.BlockchainHeight != 1000 {
+		t.Fatalf("unexpected health heights: %+v", resp)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatalf("decode raw health response: %v", err)
+	}
+	for _, field := range []string{"height", "indexed_percent", "core_synced_percent"} {
+		if _, ok := raw[field]; ok {
+			t.Fatalf("did not expect %q in health response: %+v", field, raw)
+		}
 	}
 }
 
@@ -388,6 +403,37 @@ func TestHandleConversionWithoutCache(t *testing.T) {
 	}
 	if resp.Error != "conversion-cache-unavailable" {
 		t.Fatalf("unexpected error response: %+v", resp)
+	}
+}
+
+func TestDashboardConversionRouteUsesConversionHandler(t *testing.T) {
+	fetchedAt := time.Date(2026, 5, 28, 1, 0, 0, 0, time.UTC)
+	cache := &fakeConversionStore{
+		getRate: store.ConversionRate{
+			Currency:  "usd",
+			Rate:      "0.10",
+			FetchedAt: fetchedAt,
+		},
+		getFound: true,
+	}
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = cache
+	srv.conversionClient = &fakeConversionClient{}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/conversion?currency=usd", nil)
+	rec := httptest.NewRecorder()
+	srv.DashboardHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp config.ConversionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode conversion response: %v", err)
+	}
+	if resp.Currency != "usd" || resp.Rate != "0.10" {
+		t.Fatalf("unexpected dashboard conversion response: %+v", resp)
 	}
 }
 

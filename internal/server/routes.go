@@ -55,6 +55,7 @@ func (s *Server) DashboardHandler() http.Handler {
 	mux.HandleFunc("/docs", s.HandleGETDocs)
 	mux.HandleFunc("/", s.HandleGETDashboard)
 	mux.HandleFunc("/api/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardBalance)))
+	mux.HandleFunc("/api/conversion", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleConversion)))
 	mux.HandleFunc("/api/dashboard-stats", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardStats)))
 	return mux
 }

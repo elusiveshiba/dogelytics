@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -143,5 +144,8 @@ func TestServerRateLimitMiddleware(t *testing.T) {
 	}
 	if resp.Error != "rate-limit-exceeded" {
 		t.Fatalf("unexpected error code %q", resp.Error)
+	}
+	if !strings.Contains(resp.Message, "Try again in 1 minute(s).") {
+		t.Fatalf("expected retry message, got %q", resp.Message)
 	}
 }

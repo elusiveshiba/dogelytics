@@ -171,6 +171,8 @@ Configuration is loaded in this order (later sources override earlier ones):
 | `ADMIN_UI_PORT` | `-admin-ui-port` | Port for the admin UI listener | `4421` |
 | `ENABLE_DASHBOARD_UI` | `-enable-dashboard-ui` | Enable the dashboard UI listener | `false` |
 | `DASHBOARD_UI_PORT` | `-dashboard-ui-port` | Port for the dashboard UI listener | `4422` |
+| `ENABLE_DASHBOARD_TIPS` | `-enable-dashboard-tips` | Enable the dashboard "Such coffee?" tips widget | `true` |
+| `DASHBOARD_TIPS_ADDRESS` | `-dashboard-tips-address` | Dogecoin address shown in the dashboard tips widget | `DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz` |
 | `ENABLE_SIGNUPS` | `-enable-signups` | Enable user registration through the admin UI | `false` |
 
 ## API Reference
@@ -266,6 +268,7 @@ Dogelytics also includes an optional public dashboard on `DASHBOARD_UI_PORT`, se
 - Showing wallet checks in the last 24 hours
 - Showing unique wallets checked in the last 24 hours
 - Showing the current indexed height
+- Showing a small minimisable "Such coffee?" tips widget when `ENABLE_DASHBOARD_TIPS=true`
 
 Enable it with `ENABLE_DASHBOARD_UI=true`.
 

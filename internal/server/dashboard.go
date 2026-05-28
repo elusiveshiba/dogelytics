@@ -16,11 +16,15 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := struct {
-		ShowAdminLink bool
-		AdminURL      string
+		ShowAdminLink  bool
+		AdminURL       string
+		ShowTipsWidget bool
+		TipsAddress    string
 	}{
-		ShowAdminLink: s.config.EnableAdminUI,
-		AdminURL:      uiURLForPort(r, s.config.AdminUIPort),
+		ShowAdminLink:  s.config.EnableAdminUI,
+		AdminURL:       uiURLForPort(r, s.config.AdminUIPort),
+		ShowTipsWidget: s.config.EnableDashboardTips && strings.TrimSpace(s.config.DashboardTipsAddress) != "",
+		TipsAddress:    s.config.DashboardTipsAddress,
 	}
 
 	renderTemplate(w, htmlHeader+`
@@ -82,12 +86,125 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 .dashboard-status.error {
   color: #8b0000;
 }
+.tips-widget {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  width: 175px;
+  background: #c0c0c0;
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
+  border-right: 2px solid #000;
+  border-bottom: 2px solid #000;
+  box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080;
+  padding: 2px;
+}
+.tips-widget.minimised {
+  width: auto;
+}
+.tips-title {
+  background: linear-gradient(to right, #000080, #1084d0);
+  color: #fff;
+  padding: 2px 4px;
+  font-weight: bold;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.tips-toggle {
+  width: 20px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  margin: 0;
+  line-height: 14px;
+}
+.tips-toggle:active {
+  width: 20px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+}
+.tips-body {
+  padding: 6px;
+}
+.tips-body p {
+  margin-bottom: 5px;
+}
+.tips-qr {
+  display: flex;
+  justify-content: center;
+  background: #fff;
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  margin-bottom: 5px;
+  padding: 4px;
+}
+.tips-address-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  cursor: pointer;
+  padding: 4px;
+}
+.tips-widget.minimised .tips-body {
+  display: none;
+}
+.tips-address {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  padding: 0;
+  word-break: break-all;
+  font-size: 10px;
+}
+.tips-copy-icon {
+  position: relative;
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+}
+.tips-copy-icon::before,
+.tips-copy-icon::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border: 1px solid #000;
+}
+.tips-copy-icon::before {
+  left: 1px;
+  top: 4px;
+}
+.tips-copy-icon::after {
+  left: 4px;
+  top: 1px;
+}
+@media (max-width: 640px) {
+  .tips-widget {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+}
 </style>
 <div class="dashboard-shell">
   <div>
     <h1>Dogelytics Dashboard</h1>
     <p style="text-align: center;">
-      Check a Dogecoin wallet balance and view a quick snapshot of recent activity.
+      Check a Dogecoin wallet balance.
     </p>
     {{if .ShowAdminLink}}
     <div class="links">
@@ -127,7 +244,7 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   </div>
 
   <div class="dashboard-card">
-    <h2>Server Snapshot</h2>
+    <h2>Stats</h2>
     <div class="dashboard-grid">
       <div class="dashboard-card">
         <h3>Total Wallet Checks</h3>
@@ -149,6 +266,27 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
     <div id="stats-status" class="dashboard-status" aria-live="polite"></div>
   </div>
 </div>
+
+{{if .ShowTipsWidget}}
+<script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>
+<div id="tips-widget" class="tips-widget">
+  <div class="tips-title">
+    <span>Such coffee?</span>
+    <button id="tips-toggle" type="button" class="tips-toggle" aria-label="Minimise tips">-</button>
+  </div>
+  <div class="tips-body">
+    <p>Enjoying Dogelytics? Send a tip to:</p>
+    <div class="tips-qr">
+      <doge-qr address="{{.TipsAddress}}" size="sm" background="#fff" fill="#000"></doge-qr>
+    </div>
+    <div id="tips-copy-row" class="tips-address-row" role="button" tabindex="0" title="Copy tip address">
+      <code id="tips-address" class="tips-address">{{.TipsAddress}}</code>
+      <span class="tips-copy-icon" aria-hidden="true"></span>
+    </div>
+    <div id="tips-status" class="dashboard-status" aria-live="polite"></div>
+  </div>
+</div>
+{{end}}
 
 <script>
   (function() {
@@ -180,7 +318,7 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
         setText('stat-height', String(payload.height));
 
         if (payload.available) {
-          statsStatus.textContent = 'Dashboard stats updated.';
+          statsStatus.textContent = '';
           statsStatus.className = 'dashboard-status';
         } else {
           statsStatus.textContent = payload.message || 'Usage statistics are currently unavailable.';
@@ -212,10 +350,10 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
           throw new Error(payload.message || 'Failed to look up wallet balance');
         }
 
-        setText('balance-current', payload.current);
-        setText('balance-available', payload.available);
-        setText('balance-incoming', payload.incoming);
-        setText('balance-outgoing', payload.outgoing);
+        setText('balance-current', 'Ð ' + payload.current);
+        setText('balance-available', 'Ð ' + payload.available);
+        setText('balance-incoming', 'Ð ' + payload.incoming);
+        setText('balance-outgoing', 'Ð ' + payload.outgoing);
         walletResults.hidden = false;
         walletStatus.textContent = 'Balance loaded.';
         walletStatus.className = 'dashboard-status';
@@ -228,6 +366,53 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
     loadDashboardStats();
   })();
 </script>
+{{if .ShowTipsWidget}}
+<script>
+  (function() {
+    const widget = document.getElementById('tips-widget');
+    const toggle = document.getElementById('tips-toggle');
+    const copyRow = document.getElementById('tips-copy-row');
+    const address = document.getElementById('tips-address');
+    const status = document.getElementById('tips-status');
+    if (!widget || !toggle || !copyRow || !address || !status) return;
+
+    function applyMinimised(minimised) {
+      widget.classList.toggle('minimised', minimised);
+      toggle.textContent = minimised ? '+' : '-';
+      toggle.setAttribute('aria-label', minimised ? 'Expand tips' : 'Minimise tips');
+      try {
+        localStorage.setItem('dogelytics_tips_minimised', minimised ? 'true' : 'false');
+      } catch (_) {}
+    }
+
+    applyMinimised(true);
+
+    toggle.addEventListener('click', function() {
+      applyMinimised(!widget.classList.contains('minimised'));
+    });
+
+    async function copyTipAddress() {
+      const text = address.textContent || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = 'Copied tip address.';
+        status.className = 'dashboard-status';
+      } catch (_) {
+        status.textContent = 'Copy failed. Select the address manually.';
+        status.className = 'dashboard-status error';
+      }
+    }
+
+    copyRow.addEventListener('click', copyTipAddress);
+    copyRow.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        copyTipAddress();
+      }
+    });
+  })();
+</script>
+{{end}}
 `+htmlFooter, data)
 }
 

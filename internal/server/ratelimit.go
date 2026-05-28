@@ -80,6 +80,27 @@ func (rateLimiter *RateLimiter) Allow(clientID string) bool {
 	return true
 }
 
+// RetryAfter returns how long a client should wait before retrying.
+func (rateLimiter *RateLimiter) RetryAfter(clientID string) time.Duration {
+	if rateLimiter.limit == 0 {
+		return 0
+	}
+
+	rateLimiter.mu.RLock()
+	defer rateLimiter.mu.RUnlock()
+
+	info, exists := rateLimiter.requests[clientID]
+	if !exists {
+		return 0
+	}
+
+	remaining := rateLimiter.window - time.Since(info.windowStart)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
 // getClientIP extracts the client IP from the request.
 // Uses RemoteAddr only and does not trust proxy headers.
 func getClientIP(request *http.Request) string {

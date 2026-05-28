@@ -19,6 +19,7 @@ func (s *Server) APIHandler() http.Handler {
 // AdminHandler returns the admin UI handler.
 func (s *Server) AdminHandler() http.Handler {
 	mux := http.NewServeMux()
+	registerFaviconRoutes(mux)
 	mux.HandleFunc("/", s.HandleGETIndex)
 	mux.HandleFunc("/login", methodHandler(map[string]http.HandlerFunc{
 		http.MethodGet:  s.HandleGETLogin,
@@ -49,6 +50,7 @@ func (s *Server) AdminHandler() http.Handler {
 // DashboardHandler returns the public dashboard UI handler.
 func (s *Server) DashboardHandler() http.Handler {
 	mux := http.NewServeMux()
+	registerFaviconRoutes(mux)
 	mux.HandleFunc("/", s.HandleGETDashboard)
 	mux.HandleFunc("/api/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardBalance)))
 	mux.HandleFunc("/api/dashboard-stats", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardStats)))

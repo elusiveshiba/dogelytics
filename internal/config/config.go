@@ -8,20 +8,22 @@ import (
 )
 
 type Config struct {
-	IndexerDbURL      string
-	DogelyticsDbURL   string
-	BindAddr          string
-	CorsOrigin        string
-	Confirmations     int64
-	RateLimit         int
-	APIKeyRateLimit   int
-	SessionSecret     string
-	MaxKeysPerUser    int
-	EnableAdminUI     bool
-	AdminUIPort       int
-	EnableDashboardUI bool
-	DashboardUIPort   int
-	EnableSignups     bool
+	IndexerDbURL         string
+	DogelyticsDbURL      string
+	BindAddr             string
+	CorsOrigin           string
+	Confirmations        int64
+	RateLimit            int
+	APIKeyRateLimit      int
+	SessionSecret        string
+	MaxKeysPerUser       int
+	EnableAdminUI        bool
+	AdminUIPort          int
+	EnableDashboardUI    bool
+	DashboardUIPort      int
+	EnableDashboardTips  bool
+	DashboardTipsAddress string
+	EnableSignups        bool
 }
 
 // getEnv returns environment variable value or default
@@ -124,6 +126,8 @@ func ParseConfig() *Config {
 	envAdminUIPort := getEnvInt("ADMIN_UI_PORT", 4421)
 	envEnableDashboardUI := getEnvBool("ENABLE_DASHBOARD_UI", false)
 	envDashboardUIPort := getEnvInt("DASHBOARD_UI_PORT", 4422)
+	envEnableDashboardTips := getEnvBool("ENABLE_DASHBOARD_TIPS", true)
+	envDashboardTipsAddress := getEnv("DASHBOARD_TIPS_ADDRESS", "DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz")
 	envEnableSignups := getEnvBool("ENABLE_SIGNUPS", false)
 
 	// Define flags with env vars as defaults
@@ -140,6 +144,8 @@ func ParseConfig() *Config {
 	flag.IntVar(&config.AdminUIPort, "admin-ui-port", envAdminUIPort, "Port for the admin UI listener (env: ADMIN_UI_PORT)")
 	flag.BoolVar(&config.EnableDashboardUI, "enable-dashboard-ui", envEnableDashboardUI, "Enable the public dashboard UI endpoints (env: ENABLE_DASHBOARD_UI)")
 	flag.IntVar(&config.DashboardUIPort, "dashboard-ui-port", envDashboardUIPort, "Port for the dashboard UI listener (env: DASHBOARD_UI_PORT)")
+	flag.BoolVar(&config.EnableDashboardTips, "enable-dashboard-tips", envEnableDashboardTips, "Enable the dashboard tips widget (env: ENABLE_DASHBOARD_TIPS)")
+	flag.StringVar(&config.DashboardTipsAddress, "dashboard-tips-address", envDashboardTipsAddress, "Dogecoin address for dashboard tips (env: DASHBOARD_TIPS_ADDRESS)")
 	flag.BoolVar(&config.EnableSignups, "enable-signups", envEnableSignups, "Enable user registration through the admin UI (env: ENABLE_SIGNUPS)")
 	flag.Parse()
 

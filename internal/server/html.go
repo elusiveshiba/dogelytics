@@ -334,13 +334,18 @@ const htmlHeader = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dogelytics - Dogecoin Balance Analytics</title>
+  <title>Dogelytics</title>
+  <link rel="icon" href="/favicons/favicon.ico?v=20260528" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png?v=20260528">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicons/favicon-16x16.png?v=20260528">
+  <link rel="apple-touch-icon" href="/favicons/apple-touch-icon.png?v=20260528">
+  <link rel="manifest" href="/favicons/site.webmanifest?v=20260528">
 ` + htmlStyles + `
 </head>
 <body>
 <div class="container">
   <div class="window-title">
-    <span>Dogelytics - Dogecoin Balance Analytics</span>
+    <span>Dogelytics</span>
     <span></span>
   </div>
   <div class="window-content">

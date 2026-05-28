@@ -32,11 +32,13 @@ func TestAdminHandlerRoutes(t *testing.T) {
 
 func TestDashboardHandlerRoutes(t *testing.T) {
 	srv := newTestServer(&fakeBalanceStore{height: 321}, &config.Config{
-		CorsOrigin:        "*",
-		EnableDashboardUI: true,
-		DashboardUIPort:   4422,
-		EnableAdminUI:     true,
-		AdminUIPort:       4421,
+		CorsOrigin:           "*",
+		EnableDashboardUI:    true,
+		DashboardUIPort:      4422,
+		EnableAdminUI:        true,
+		AdminUIPort:          4421,
+		EnableDashboardTips:  true,
+		DashboardTipsAddress: "DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -53,6 +55,53 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open admin UI") {
 		t.Fatalf("expected admin UI link in %q", body)
+	}
+	if !strings.Contains(body, "Such coffee?") {
+		t.Fatalf("expected tips widget in %q", body)
+	}
+	if !strings.Contains(body, "Enjoying Dogelytics? Send a tip to:") {
+		t.Fatalf("expected tips prompt in %q", body)
+	}
+	if !strings.Contains(body, "DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz") {
+		t.Fatalf("expected tips address in %q", body)
+	}
+	if strings.Contains(body, "Copy address") {
+		t.Fatalf("did not expect copy button text in %q", body)
+	}
+	if !strings.Contains(body, `src="https://fetch.dogecoin.org/doge-qr.js"`) {
+		t.Fatalf("expected doge-qr script in %q", body)
+	}
+	if !strings.Contains(body, `<doge-qr address="DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz" size="sm" background="#fff" fill="#000"></doge-qr>`) {
+		t.Fatalf("expected doge-qr element in %q", body)
+	}
+	if !strings.Contains(body, "applyMinimised(true)") {
+		t.Fatalf("expected tips widget to start minimised in %q", body)
+	}
+}
+
+func TestDashboardHandlerServesFavicons(t *testing.T) {
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{
+		CorsOrigin:        "*",
+		EnableDashboardUI: true,
+	})
+
+	tests := []string{
+		"/favicon.ico",
+		"/apple-touch-icon.png",
+		"/site.webmanifest",
+		"/favicons/favicon-32x32.png",
+	}
+
+	for _, path := range tests {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rec := httptest.NewRecorder()
+			srv.DashboardHandler().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d", rec.Code)
+			}
+		})
 	}
 }
 

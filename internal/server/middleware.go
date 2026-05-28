@@ -2,7 +2,9 @@ package server
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"time"
 )
 
 // RateLimitMiddleware applies per-key or per-IP rate limiting to API endpoints.
@@ -14,7 +16,7 @@ func (s *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					w,
 					http.StatusTooManyRequests,
 					"rate-limit-exceeded",
-					fmt.Sprintf("Rate limit exceeded. Maximum %d requests per minute.", s.config.APIKeyRateLimit),
+					rateLimitMessage(s.config.APIKeyRateLimit, s.apiLimiter.RetryAfter(key.KID)),
 				)
 				return
 			}
@@ -30,7 +32,7 @@ func (s *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					w,
 					http.StatusTooManyRequests,
 					"rate-limit-exceeded",
-					fmt.Sprintf("Rate limit exceeded. Maximum %d requests per minute.", s.config.RateLimit),
+					rateLimitMessage(s.config.RateLimit, s.ipLimiter.RetryAfter(clientIP)),
 				)
 				return
 			}
@@ -38,4 +40,12 @@ func (s *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		next.ServeHTTP(w, r)
 	}
+}
+
+func rateLimitMessage(limit int, retryAfter time.Duration) string {
+	minutes := int(math.Ceil(retryAfter.Minutes()))
+	if minutes < 1 {
+		minutes = 1
+	}
+	return fmt.Sprintf("Rate limit exceeded. Maximum %d requests per minute. Try again in %d minute(s).", limit, minutes)
 }

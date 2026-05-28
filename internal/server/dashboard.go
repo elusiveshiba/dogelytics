@@ -38,6 +38,14 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
 }
+.dashboard-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.dashboard-section h3 {
+  margin: 0;
+}
 .dashboard-card {
   background: #c0c0c0;
   border-top: 2px solid #fff;
@@ -49,10 +57,34 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 .dashboard-card h3 {
   margin-top: 0;
 }
+.dashboard-stat-card {
+  background: #fff;
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  padding: 8px;
+}
+.dashboard-stat-label {
+  color: #666;
+  font-size: 10px;
+  margin-bottom: 4px;
+}
 .dashboard-stat-value {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: bold;
-  margin-top: 6px;
+  line-height: 1.1;
+}
+.dashboard-stat-progress {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dashboard-stat-detail {
+  color: #666;
+  font-size: 10px;
+  font-weight: normal;
 }
 .dashboard-balance-grid {
   display: grid;
@@ -75,7 +107,7 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 }
 .dashboard-balance-value {
   font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
 }
 .dashboard-status {
@@ -272,30 +304,45 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 
   <div class="dashboard-card">
     <h2>Stats</h2>
-    <div class="dashboard-grid">
-      <div class="dashboard-card">
-        <h3>Total Wallet Checks</h3>
-        <div id="stat-total-wallets" class="dashboard-stat-value">-</div>
+    <div class="dashboard-section">
+      <h3>Wallets</h3>
+      <div class="dashboard-grid">
+        <div class="dashboard-stat-card">
+          <div class="dashboard-stat-label">Total wallets checked (24h)</div>
+          <div id="stat-wallets-24h" class="dashboard-stat-value">-</div>
+        </div>
+        <div class="dashboard-stat-card">
+          <div class="dashboard-stat-label">Unique wallets checked (24h)</div>
+          <div id="stat-unique-wallets-24h" class="dashboard-stat-value">-</div>
+        </div>
+        <div class="dashboard-stat-card">
+          <div class="dashboard-stat-label">Total wallets checked</div>
+          <div id="stat-total-wallets" class="dashboard-stat-value">-</div>
+        </div>
+        <div class="dashboard-stat-card">
+          <div class="dashboard-stat-label">Unique wallets checked</div>
+          <div id="stat-unique-wallets" class="dashboard-stat-value">-</div>
+        </div>
       </div>
-      <div class="dashboard-card">
-        <h3>Wallet Checks (24h)</h3>
-        <div id="stat-wallets-24h" class="dashboard-stat-value">-</div>
-      </div>
-      <div class="dashboard-card">
-        <h3>Unique Wallets (24h)</h3>
-        <div id="stat-unique-wallets-24h" class="dashboard-stat-value">-</div>
-      </div>
-      <div class="dashboard-card">
-        <h3>Indexed Height</h3>
-        <div id="stat-height" class="dashboard-stat-value">-</div>
-      </div>
-      <div class="dashboard-card">
-        <h3>Blockchain Height</h3>
-        <div id="stat-blockchain-height" class="dashboard-stat-value">-</div>
-      </div>
-      <div class="dashboard-card">
-        <h3>Indexed</h3>
-        <div id="stat-indexed-percent" class="dashboard-stat-value">-</div>
+    </div>
+
+    <div class="dashboard-section">
+      <h3>Blockchain</h3>
+      <div class="dashboard-grid">
+        <div class="dashboard-stat-card">
+          <div class="dashboard-stat-label">Indexed Height</div>
+          <div class="dashboard-stat-progress">
+            <span id="stat-indexed-percent" class="dashboard-stat-value">-</span>
+            <span id="stat-indexed-detail" class="dashboard-stat-detail"></span>
+          </div>
+        </div>
+        <div class="dashboard-stat-card">
+          <div class="dashboard-stat-label">Blockchain Height</div>
+          <div class="dashboard-stat-progress">
+            <span id="stat-blockchain-height" class="dashboard-stat-value">-</span>
+            <span id="stat-blockchain-detail" class="dashboard-stat-detail"></span>
+          </div>
+        </div>
       </div>
     </div>
     <div id="stats-status" class="dashboard-status" aria-live="polite"></div>
@@ -338,6 +385,11 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       if (element) element.textContent = value;
     }
 
+    function setStatProgress(mainId, detailId, mainValue, detailValue) {
+      setText(mainId, mainValue);
+      setText(detailId, detailValue);
+    }
+
     function formatInteger(value) {
       const text = String(value);
       if (!/^-?\d+$/.test(text)) return text;
@@ -363,6 +415,20 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
       return number.toFixed(2).replace(/\.?0+$/, '') + '%';
     }
 
+    function formatIndexedProgress(indexedHeight, blockchainHeight) {
+      const indexed = Number(indexedHeight);
+      const total = Number(blockchainHeight);
+      if (!Number.isFinite(indexed) || !Number.isFinite(total) || total <= 0) {
+        return { main: '-', detail: '' };
+      }
+
+      const percent = Math.min((indexed / total) * 100, 100);
+      return {
+        main: formatPercent(percent),
+        detail: formatInteger(indexedHeight) + '/' + formatInteger(blockchainHeight),
+      };
+    }
+
     async function loadDashboardStats() {
       statsStatus.textContent = 'Loading dashboard stats...';
       statsStatus.className = 'dashboard-status';
@@ -374,12 +440,21 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
           throw new Error(payload.message || 'Failed to load dashboard stats');
         }
 
-        setText('stat-total-wallets', formatInteger(payload.total_wallets_checked));
         setText('stat-wallets-24h', formatInteger(payload.wallets_checked_last_24h));
         setText('stat-unique-wallets-24h', formatInteger(payload.unique_wallets_last_24h));
-        setText('stat-height', formatInteger(payload.height));
-        setText('stat-blockchain-height', payload.blockchain_height ? formatInteger(payload.blockchain_height) : '-');
-        setText('stat-indexed-percent', payload.indexed_percent == null ? '-' : formatPercent(payload.indexed_percent));
+        setText('stat-total-wallets', formatInteger(payload.total_wallets_checked));
+        setText('stat-unique-wallets', formatInteger(payload.unique_wallets_checked));
+
+        const indexedProgress = formatIndexedProgress(payload.height, payload.blockchain_height);
+        setStatProgress('stat-indexed-percent', 'stat-indexed-detail', indexedProgress.main, indexedProgress.detail);
+
+        const blockchainProgress = formatIndexedProgress(payload.blockchain_height, payload.blockchain_height);
+        setStatProgress(
+          'stat-blockchain-height',
+          'stat-blockchain-detail',
+          blockchainProgress.main,
+          blockchainProgress.detail
+        );
 
         if (payload.available) {
           statsStatus.textContent = '';
@@ -526,6 +601,7 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 	response.Message = ""
 	response.TotalWalletsChecked = stats.TotalWalletsChecked
 	response.WalletsCheckedLast24h = stats.WalletsCheckedLast24h
+	response.UniqueWalletsChecked = stats.UniqueWalletsChecked
 	response.UniqueWalletsLast24h = stats.UniqueWalletsLast24h
 	s.sendJSON(w, http.StatusOK, response)
 }

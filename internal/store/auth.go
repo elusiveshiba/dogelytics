@@ -327,6 +327,7 @@ type UsageStats struct {
 type DashboardStats struct {
 	TotalWalletsChecked   int `json:"total_wallets_checked"`
 	WalletsCheckedLast24h int `json:"wallets_checked_last_24h"`
+	UniqueWalletsChecked  int `json:"unique_wallets_checked"`
 	UniqueWalletsLast24h  int `json:"unique_wallets_last_24h"`
 }
 
@@ -389,6 +390,11 @@ func (s *Store) GetDashboardStats() (DashboardStats, error) {
 			) AS wallets_checked_last_24h,
 			COUNT(DISTINCT wallet_address) FILTER (
 				WHERE success = true
+				AND wallet_address IS NOT NULL
+				AND wallet_address != ''
+			) AS unique_wallets_checked,
+			COUNT(DISTINCT wallet_address) FILTER (
+				WHERE success = true
 				AND timestamp >= now() - interval '24 hours'
 				AND wallet_address IS NOT NULL
 				AND wallet_address != ''
@@ -400,6 +406,7 @@ func (s *Store) GetDashboardStats() (DashboardStats, error) {
 	err := s.db.QueryRowContext(s.ctx, query).Scan(
 		&stats.TotalWalletsChecked,
 		&stats.WalletsCheckedLast24h,
+		&stats.UniqueWalletsChecked,
 		&stats.UniqueWalletsLast24h,
 	)
 	if err != nil {

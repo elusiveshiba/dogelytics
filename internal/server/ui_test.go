@@ -71,6 +71,21 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "Open admin UI") {
 		t.Fatalf("expected admin UI link in %q", body)
 	}
+	for _, want := range []string{
+		"Wallets",
+		"Blockchain",
+		"Total wallets checked (24h)",
+		"Unique wallets checked (24h)",
+		"Total wallets checked",
+		"Unique wallets checked",
+		"Indexed Height",
+		"Blockchain Height",
+		`id="stat-unique-wallets"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected dashboard stats layout to contain %q in %q", want, body)
+		}
+	}
 	if !strings.Contains(body, `class="docs-button" href="/docs">docs</a>`) {
 		t.Fatalf("expected docs button in %q", body)
 	}
@@ -95,14 +110,20 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "applyMinimised(true)") {
 		t.Fatalf("expected tips widget to start minimised in %q", body)
 	}
-	if !strings.Contains(body, "formatInteger(payload.height)") {
-		t.Fatalf("expected indexed height formatting in %q", body)
+	if !strings.Contains(body, "formatIndexedProgress(payload.height, payload.blockchain_height)") {
+		t.Fatalf("expected indexed progress formatting in %q", body)
 	}
-	if !strings.Contains(body, "formatInteger(payload.blockchain_height)") {
-		t.Fatalf("expected blockchain height formatting in %q", body)
+	if !strings.Contains(body, "formatIndexedProgress(payload.blockchain_height, payload.blockchain_height)") {
+		t.Fatalf("expected blockchain progress formatting in %q", body)
+	}
+	if !strings.Contains(body, "formatInteger(payload.unique_wallets_checked)") {
+		t.Fatalf("expected overall unique wallet formatting in %q", body)
 	}
 	if !strings.Contains(body, "'Ð' + formatDogeAmount(payload.current)") {
 		t.Fatalf("expected formatted Dogecoin balance in %q", body)
+	}
+	if !strings.Contains(body, "font-size: 14px;") {
+		t.Fatalf("expected larger balance font size in %q", body)
 	}
 }
 
@@ -233,6 +254,9 @@ func TestDashboardStatsWithoutAuthStore(t *testing.T) {
 	}
 	if resp.BlockchainHeight != 1000 {
 		t.Fatalf("expected blockchain height 1000, got %+v", resp)
+	}
+	if resp.UniqueWalletsChecked != 0 {
+		t.Fatalf("expected zero overall unique wallets without auth store, got %+v", resp)
 	}
 	if resp.IndexedPercent == nil || math.Abs(*resp.IndexedPercent-77.7) > 0.0001 {
 		t.Fatalf("expected indexed percent 77.7, got %+v", resp)

@@ -15,5 +15,6 @@ type DashboardStatsResponse struct {
 	IndexedPercent        *float64 `json:"indexed_percent,omitempty"`
 	TotalWalletsChecked   int      `json:"total_wallets_checked"`
 	WalletsCheckedLast24h int      `json:"wallets_checked_last_24h"`
+	UniqueWalletsChecked  int      `json:"unique_wallets_checked"`
 	UniqueWalletsLast24h  int      `json:"unique_wallets_last_24h"`
 }

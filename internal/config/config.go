@@ -8,17 +8,20 @@ import (
 )
 
 type Config struct {
-	IndexerDbURL    string
-	DogelyticsDbURL string
-	BindAddr        string
-	CorsOrigin      string
-	Confirmations   int64
-	RateLimit       int
-	APIKeyRateLimit int
-	SessionSecret   string
-	MaxKeysPerUser  int
-	EnableUI        bool
-	EnableSignups   bool
+	IndexerDbURL      string
+	DogelyticsDbURL   string
+	BindAddr          string
+	CorsOrigin        string
+	Confirmations     int64
+	RateLimit         int
+	APIKeyRateLimit   int
+	SessionSecret     string
+	MaxKeysPerUser    int
+	EnableAdminUI     bool
+	AdminUIPort       int
+	EnableDashboardUI bool
+	DashboardUIPort   int
+	EnableSignups     bool
 }
 
 // getEnv returns environment variable value or default
@@ -117,8 +120,11 @@ func ParseConfig() *Config {
 	envAPIKeyRateLimit := getEnvInt("API_KEY_RATELIMIT", 120)
 	envSessionSecret := getEnv("SESSION_SECRET", "")
 	envMaxKeysPerUser := getEnvInt("MAX_KEYS_PER_USER", 1)
-	envEnableUI := getEnvBool("ENABLE_UI", true)
-	envEnableSignups := getEnvBool("ENABLE_SIGNUPS", true)
+	envEnableAdminUI := getEnvBool("ENABLE_ADMIN_UI", false)
+	envAdminUIPort := getEnvInt("ADMIN_UI_PORT", 4421)
+	envEnableDashboardUI := getEnvBool("ENABLE_DASHBOARD_UI", false)
+	envDashboardUIPort := getEnvInt("DASHBOARD_UI_PORT", 4422)
+	envEnableSignups := getEnvBool("ENABLE_SIGNUPS", false)
 
 	// Define flags with env vars as defaults
 	flag.StringVar(&config.IndexerDbURL, "indexer-dburl", envIndexerDbURL, "PostgreSQL database URL for indexer data (env: INDEXER_DBURL)")
@@ -130,8 +136,11 @@ func ParseConfig() *Config {
 	flag.IntVar(&config.APIKeyRateLimit, "apikey-ratelimit", envAPIKeyRateLimit, "Maximum requests per API key per minute (0 = disabled) (env: API_KEY_RATELIMIT)")
 	flag.StringVar(&config.SessionSecret, "session-secret", envSessionSecret, "Session HMAC secret (required for local email/password auth) (env: SESSION_SECRET)")
 	flag.IntVar(&config.MaxKeysPerUser, "max-keys-per-user", envMaxKeysPerUser, "Maximum number of API keys per user (env: MAX_KEYS_PER_USER)")
-	flag.BoolVar(&config.EnableUI, "enable-ui", envEnableUI, "Enable web UI endpoints (login, register, keys pages) (env: ENABLE_UI)")
-	flag.BoolVar(&config.EnableSignups, "enable-signups", envEnableSignups, "Enable user registration through the UI (env: ENABLE_SIGNUPS)")
+	flag.BoolVar(&config.EnableAdminUI, "enable-admin-ui", envEnableAdminUI, "Enable the admin UI endpoints (login, register, keys pages) (env: ENABLE_ADMIN_UI)")
+	flag.IntVar(&config.AdminUIPort, "admin-ui-port", envAdminUIPort, "Port for the admin UI listener (env: ADMIN_UI_PORT)")
+	flag.BoolVar(&config.EnableDashboardUI, "enable-dashboard-ui", envEnableDashboardUI, "Enable the public dashboard UI endpoints (env: ENABLE_DASHBOARD_UI)")
+	flag.IntVar(&config.DashboardUIPort, "dashboard-ui-port", envDashboardUIPort, "Port for the dashboard UI listener (env: DASHBOARD_UI_PORT)")
+	flag.BoolVar(&config.EnableSignups, "enable-signups", envEnableSignups, "Enable user registration through the admin UI (env: ENABLE_SIGNUPS)")
 	flag.Parse()
 
 	return &config

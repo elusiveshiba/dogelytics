@@ -47,6 +47,10 @@ func (s *Server) APIKeyAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if !s.hasAuthStore() {
+			sendInvalidAPIKeyError(w)
+			return
+		}
 		kid, secret, ok := parseToken(tok)
 		if !ok {
 			sendInvalidAPIKeyError(w)

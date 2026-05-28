@@ -34,11 +34,11 @@ func (f *fakeBalanceStore) CurrentHeight(context.Context) (int64, error) {
 }
 
 func TestHandlerRoutesAPIOnly(t *testing.T) {
-	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*", EnableUI: false})
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
+	srv.APIHandler().ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for removed UI routes, got %d", rec.Code)

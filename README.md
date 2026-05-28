@@ -9,7 +9,8 @@ A lightweight REST API service that provides Dogecoin wallet balance information
 - **Rate Limiting**: Per-IP and per-API key rate limiting
 - **API Key Management**: User accounts with API key generation, revocation, and expiry
 - **Usage Statistics**: Real-time analytics with interactive charts and filtering
-- **Web UI**: Optional management interface with a Windows 95 theme
+- **Admin UI**: Optional management interface with login, registration, key management, and usage statistics
+- **Dashboard UI**: Optional public dashboard with a wallet checker and server snapshot cards
 - **Admin CLI**: Command-line tool for managing users and API keys
 - **CORS Support**: Configurable CORS headers for browser-based applications
 
@@ -102,10 +103,15 @@ Copy the example environment file and edit it:
 cp .env.example .env
 ```
 
-At minimum, set the two database URLs and a session secret:
+At minimum, set the indexer database URL:
 
 ```bash
 INDEXER_DBURL=postgres://indexer:yourpassword@localhost:5432/indexer?sslmode=disable
+```
+
+If you enable the admin UI, also set the Dogelytics database URL and a session secret:
+
+```bash
 DOGELYTICS_DBURL=postgres://dogelytics:yourpassword@localhost:5432/dogelytics?sslmode=disable
 SESSION_SECRET=your-secret-key-here
 ```
@@ -116,7 +122,7 @@ Generate a strong session secret with:
 openssl rand -base64 32
 ```
 
-`SESSION_SECRET` is required when `ENABLE_UI=true` (the default).
+`SESSION_SECRET` is required only when `ENABLE_ADMIN_UI=true`.
 
 See [Configuration Reference](#configuration-reference) for all options.
 
@@ -159,10 +165,13 @@ Configuration is loaded in this order (later sources override earlier ones):
 | `CONFIRMATIONS` | `-confirmations` | Confirmations required for available balance | `6` |
 | `RATELIMIT` | `-ratelimit` | Max requests per IP per minute (0 = disabled) | `10` |
 | `API_KEY_RATELIMIT` | `-apikey-ratelimit` | Max requests per API key per minute (0 = disabled) | `120` |
-| `SESSION_SECRET` | `-session-secret` | Session HMAC secret (required when UI is enabled) | _(empty)_ |
+| `SESSION_SECRET` | `-session-secret` | Session HMAC secret (required when admin UI is enabled) | _(empty)_ |
 | `MAX_KEYS_PER_USER` | `-max-keys-per-user` | Maximum API keys per user | `1` |
-| `ENABLE_UI` | `-enable-ui` | Enable web UI endpoints | `true` |
-| `ENABLE_SIGNUPS` | `-enable-signups` | Enable user registration through the UI | `true` |
+| `ENABLE_ADMIN_UI` | `-enable-admin-ui` | Enable the admin UI listener | `false` |
+| `ADMIN_UI_PORT` | `-admin-ui-port` | Port for the admin UI listener | `4421` |
+| `ENABLE_DASHBOARD_UI` | `-enable-dashboard-ui` | Enable the dashboard UI listener | `false` |
+| `DASHBOARD_UI_PORT` | `-dashboard-ui-port` | Port for the dashboard UI listener | `4422` |
+| `ENABLE_SIGNUPS` | `-enable-signups` | Enable user registration through the admin UI | `false` |
 
 ## API Reference
 
@@ -230,9 +239,9 @@ Users and API keys can be managed through the web UI or the admin CLI.
 
 Each user can hold up to `MAX_KEYS_PER_USER` active keys (default: 1). Key secrets are shown only once at creation. Passwords must be at least 12 characters.
 
-### Web UI
+### Admin UI
 
-Dogelytics includes an optional web interface at `http://localhost:4420` with a Windows 95 theme. By default, both the UI and self-registration are enabled.
+Dogelytics includes an optional admin interface with a Windows 95 theme. It runs on its own port and is disabled by default.
 
 | Operation | How |
 |---|---|
@@ -245,8 +254,20 @@ Dogelytics includes an optional web interface at `http://localhost:4420` with a 
 
 **Controlling access:**
 
-- `ENABLE_UI=false` disables all web UI endpoints, leaving only the API.
-- `ENABLE_SIGNUPS=false` disables self-registration while keeping the UI available for existing users. When disabled, users can only be created via the admin CLI.
+- `ENABLE_ADMIN_UI=true` starts the admin UI listener on `ADMIN_UI_PORT`.
+- `ENABLE_SIGNUPS=false` disables self-registration while keeping the admin UI available for existing users. When disabled, users can only be created via the admin CLI.
+
+### Dashboard UI
+
+Dogelytics also includes an optional public dashboard on `DASHBOARD_UI_PORT`, separate from the API and admin UI. The first dashboard focuses on:
+
+- Looking up a wallet balance from a pasted Dogecoin address
+- Showing total successful wallet checks
+- Showing wallet checks in the last 24 hours
+- Showing unique wallets checked in the last 24 hours
+- Showing the current indexed height
+
+Enable it with `ENABLE_DASHBOARD_UI=true`.
 
 ### Admin CLI
 

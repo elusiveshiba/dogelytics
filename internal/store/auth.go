@@ -323,6 +323,13 @@ type UsageStats struct {
 	UniqueKeys     int `json:"unique_keys"`
 }
 
+// DashboardStats holds the public dashboard summary metrics.
+type DashboardStats struct {
+	TotalWalletsChecked   int `json:"total_wallets_checked"`
+	WalletsCheckedLast24h int `json:"wallets_checked_last_24h"`
+	UniqueWalletsLast24h  int `json:"unique_wallets_last_24h"`
+}
+
 // TimeSeriesPoint represents a single data point in time
 type TimeSeriesPoint struct {
 	Timestamp      time.Time `json:"timestamp"`
@@ -366,6 +373,37 @@ func (s *Store) GetUsageStats(hours int, filterType string, filterValues []strin
 	err := s.db.QueryRowContext(s.ctx, query, args...).Scan(&stats.WalletsChecked, &stats.UniqueIPs, &stats.UniqueKeys)
 	if err != nil {
 		return stats, fmt.Errorf("get usage stats: %w", err)
+	}
+
+	return stats, nil
+}
+
+// GetDashboardStats returns the public dashboard summary metrics.
+func (s *Store) GetDashboardStats() (DashboardStats, error) {
+	const query = `
+		SELECT
+			COUNT(*) FILTER (WHERE success = true) AS total_wallets_checked,
+			COUNT(*) FILTER (
+				WHERE success = true
+				AND timestamp >= now() - interval '24 hours'
+			) AS wallets_checked_last_24h,
+			COUNT(DISTINCT wallet_address) FILTER (
+				WHERE success = true
+				AND timestamp >= now() - interval '24 hours'
+				AND wallet_address IS NOT NULL
+				AND wallet_address != ''
+			) AS unique_wallets_last_24h
+		FROM dogelytics_request_logs
+	`
+
+	var stats DashboardStats
+	err := s.db.QueryRowContext(s.ctx, query).Scan(
+		&stats.TotalWalletsChecked,
+		&stats.WalletsCheckedLast24h,
+		&stats.UniqueWalletsLast24h,
+	)
+	if err != nil {
+		return DashboardStats{}, fmt.Errorf("get dashboard stats: %w", err)
 	}
 
 	return stats, nil

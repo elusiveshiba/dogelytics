@@ -15,7 +15,7 @@ type BalanceStore interface {
 	CurrentHeight(ctx context.Context) (int64, error)
 }
 
-// Server handles HTTP requests for balance and health endpoints.
+// Server handles HTTP requests for the API and optional UI surfaces.
 type Server struct {
 	indexerStore BalanceStore
 	authStore    *store.Store
@@ -33,4 +33,8 @@ func NewServer(indexerStore BalanceStore, authStore *store.Store, cfg *config.Co
 		ipLimiter:    ipLimiter,
 		apiLimiter:   apiLimiter,
 	}
+}
+
+func (s *Server) hasAuthStore() bool {
+	return s.authStore != nil
 }

@@ -50,33 +50,12 @@ func (s *Server) HandleBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	address := r.URL.Query().Get("address")
-	if address == "" {
-		s.sendError(w, http.StatusBadRequest, "missing-parameter", "Missing 'address' parameter in query string")
-		return
-	}
+	s.serveBalanceJSON(w, r)
+}
 
-	pubkeyHash, err := doge.Base58DecodeCheck(address)
-	if err != nil {
-		s.sendError(w, http.StatusBadRequest, "invalid-address", "Invalid Dogecoin address format")
-		return
-	}
-
-	if len(pubkeyHash) != 21 {
-		s.sendError(w, http.StatusBadRequest, "invalid-address", "Invalid Dogecoin address length")
-		return
-	}
-
-	scriptType := scriptTypeFromVersionByte(pubkeyHash[0])
-	if scriptType == doge.ScriptTypeNone {
-		s.sendError(w, http.StatusBadRequest, "unsupported-address", "Unsupported address type")
-		return
-	}
-
-	balance, err := s.indexerStore.GetBalance(r.Context(), scriptType, pubkeyHash[1:], s.config.Confirmations)
-	if err != nil {
-		s.logBalanceRequest(r, address, false)
-		s.sendError(w, http.StatusInternalServerError, "database-error", fmt.Sprintf("Failed to get balance: %v", err))
+func (s *Server) serveBalanceJSON(w http.ResponseWriter, r *http.Request) {
+	balance, address, ok := s.lookupBalance(r, w)
+	if !ok {
 		return
 	}
 
@@ -87,6 +66,45 @@ func (s *Server) HandleBalance(w http.ResponseWriter, r *http.Request) {
 		Outgoing:  balance.Outgoing,
 		Current:   balance.Current,
 	})
+}
+
+func (s *Server) lookupBalance(r *http.Request, w http.ResponseWriter) (config.BalanceResponse, string, bool) {
+	address := r.URL.Query().Get("address")
+	if address == "" {
+		s.sendError(w, http.StatusBadRequest, "missing-parameter", "Missing 'address' parameter in query string")
+		return config.BalanceResponse{}, "", false
+	}
+
+	pubkeyHash, err := doge.Base58DecodeCheck(address)
+	if err != nil {
+		s.sendError(w, http.StatusBadRequest, "invalid-address", "Invalid Dogecoin address format")
+		return config.BalanceResponse{}, "", false
+	}
+
+	if len(pubkeyHash) != 21 {
+		s.sendError(w, http.StatusBadRequest, "invalid-address", "Invalid Dogecoin address length")
+		return config.BalanceResponse{}, "", false
+	}
+
+	scriptType := scriptTypeFromVersionByte(pubkeyHash[0])
+	if scriptType == doge.ScriptTypeNone {
+		s.sendError(w, http.StatusBadRequest, "unsupported-address", "Unsupported address type")
+		return config.BalanceResponse{}, "", false
+	}
+
+	balance, err := s.indexerStore.GetBalance(r.Context(), scriptType, pubkeyHash[1:], s.config.Confirmations)
+	if err != nil {
+		s.logBalanceRequest(r, address, false)
+		s.sendError(w, http.StatusInternalServerError, "database-error", fmt.Sprintf("Failed to get balance: %v", err))
+		return config.BalanceResponse{}, "", false
+	}
+
+	return config.BalanceResponse{
+		Incoming:  balance.Incoming,
+		Available: balance.Available,
+		Outgoing:  balance.Outgoing,
+		Current:   balance.Current,
+	}, address, true
 }
 
 func (s *Server) setCORSHeaders(w http.ResponseWriter) {

@@ -104,6 +104,15 @@ func (s *Server) HandleGETDocs(w http.ResponseWriter, r *http.Request) {
   </div>
 
   <div class="docs-card">
+    <h2>API Keys</h2>
+    <p>API keys are optional. Requests without a key are still allowed, but a valid key gets the higher API-key rate limit.</p>
+    <pre class="docs-code"><code>curl \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  "https://api.dogelytics.com/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"</code></pre>
+    <p>You can also send the key with <code>X-Api-Key: YOUR_API_KEY</code>.</p>
+  </div>
+
+  <div class="docs-card">
     <h2>GET /balance</h2>
     <p>Returns the balance for a Dogecoin address. Values are decimal DOGE strings.</p>
     <table class="docs-table">
@@ -136,15 +145,6 @@ func (s *Server) HandleGETDocs(w http.ResponseWriter, r *http.Request) {
   "coingecko_updated_at": "2026-05-28T01:43:20Z"
 }</code></pre>
     <p>Rates are sourced from CoinGecko and cached locally for one hour per currency. Dogelytics only refreshes from CoinGecko when a currency is missing from the cache or the cached row is older than one hour. The dashboard uses the same conversion data through its same-origin <code>/api/conversion</code> route.</p>
-  </div>
-
-  <div class="docs-card">
-    <h2>API Keys</h2>
-    <p>API keys are optional. Requests without a key are still allowed, but a valid key gets the higher API-key rate limit.</p>
-    <pre class="docs-code"><code>curl \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  "https://api.dogelytics.com/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"</code></pre>
-    <p>You can also send the key with <code>X-Api-Key: YOUR_API_KEY</code>.</p>
   </div>
 
   <div class="docs-card">

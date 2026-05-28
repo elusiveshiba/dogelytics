@@ -216,6 +216,12 @@ func TestDashboardDocsRoute(t *testing.T) {
 	if strings.Contains(body, "Back to dashboard") {
 		t.Fatalf("did not expect old back link in %q", body)
 	}
+	baseIndex := strings.Index(body, "<h2>Base URL</h2>")
+	apiKeysIndex := strings.Index(body, "<h2>API Keys</h2>")
+	balanceIndex := strings.Index(body, "<h2>GET /balance</h2>")
+	if baseIndex == -1 || apiKeysIndex == -1 || balanceIndex == -1 || !(baseIndex < apiKeysIndex && apiKeysIndex < balanceIndex) {
+		t.Fatalf("expected API Keys section immediately after Base URL in %q", body)
+	}
 	if strings.Contains(body, "currency=doge") || strings.Contains(body, "source <code>doge</code>") {
 		t.Fatalf("did not expect DOGE easter egg to be documented in %q", body)
 	}

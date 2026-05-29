@@ -11,6 +11,7 @@ A lightweight REST API service that provides Dogecoin wallet balance information
 - **Usage Statistics**: Real-time analytics with interactive charts and filtering
 - **Admin UI**: Optional management interface with login, registration, key management, and usage statistics
 - **Dashboard UI**: Optional public dashboard with a wallet checker and server snapshot cards
+- **Meme Number Easter Egg**: Public pages highlight `69` and `420` variants and fire colour-matched confetti when clicked
 - **Admin CLI**: Command-line tool for managing users and API keys
 - **CORS Support**: Configurable CORS headers for browser-based applications
 

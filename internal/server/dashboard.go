@@ -927,6 +927,7 @@ body {
   })();
 </script>
 {{end}}
+`+memeNumberAssets+`
 </body>
 </html>
 `, data)

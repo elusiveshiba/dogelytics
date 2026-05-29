@@ -445,6 +445,7 @@ GET /api/dashboard-stats</code></pre>
   })();
 </script>
 {{end}}
+`+memeNumberAssets+`
 </body>
 </html>
 `, data)

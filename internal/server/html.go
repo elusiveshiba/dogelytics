@@ -349,3 +349,278 @@ const htmlFooter = `
 </body>
 </html>
 `
+
+// Shared assets for the public meme-number easter egg.
+const memeNumberAssets = `
+<style>
+  .meme-highlight {
+    background: #ffff00;
+    color: #000;
+    cursor: pointer;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+
+  .meme-highlight:focus {
+    outline: 1px dotted #000;
+    outline-offset: 1px;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+<script>
+  (function() {
+    var matchPattern = /4(?:20|[.,-]20|2[.,-]0)|6[.,-]?9/g;
+    var highlightClass = "meme-highlight";
+    var scanQueued = false;
+    var skippedTags = {
+      A: true,
+      BUTTON: true,
+      INPUT: true,
+      SCRIPT: true,
+      STYLE: true,
+      TEXTAREA: true
+    };
+
+    function getMemeType(value) {
+      if (value.charAt(0) === "4") {
+        return "420";
+      }
+      return "69";
+    }
+
+    function isIgnoredTextNode(node) {
+      var current = node.parentNode;
+      while (current && current !== document.body) {
+        if (current.nodeType === Node.ELEMENT_NODE) {
+          if (current.classList && current.classList.contains(highlightClass)) {
+            return true;
+          }
+          if (skippedTags[current.tagName] || current.isContentEditable) {
+            return true;
+          }
+        }
+        current = current.parentNode;
+      }
+      return false;
+    }
+
+    function highlightTextNode(node) {
+      var text = node.nodeValue;
+      var fragment = document.createDocumentFragment();
+      var lastIndex = 0;
+      var match;
+
+      matchPattern.lastIndex = 0;
+      while ((match = matchPattern.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+
+        var highlight = document.createElement("span");
+        highlight.className = highlightClass;
+        highlight.setAttribute("data-meme", getMemeType(match[0]));
+        highlight.setAttribute("role", "button");
+        highlight.setAttribute("tabindex", "0");
+        highlight.textContent = match[0];
+        fragment.appendChild(highlight);
+
+        lastIndex = match.index + match[0].length;
+      }
+
+      if (lastIndex < text.length) {
+        fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+
+      if (node.parentNode) {
+        node.parentNode.replaceChild(fragment, node);
+      }
+    }
+
+    function scan(root) {
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(node) {
+          if (!node.nodeValue || !node.nodeValue.trim() || isIgnoredTextNode(node)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          matchPattern.lastIndex = 0;
+          if (!matchPattern.test(node.nodeValue)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      var nodes = [];
+      var current;
+
+      while ((current = walker.nextNode()) !== null) {
+        nodes.push(current);
+      }
+
+      for (var i = 0; i < nodes.length; i++) {
+        highlightTextNode(nodes[i]);
+      }
+    }
+
+    function queueScan() {
+      if (scanQueued) {
+        return;
+      }
+
+      scanQueued = true;
+      (window.requestAnimationFrame || window.setTimeout)(function() {
+        scanQueued = false;
+        if (document.body) {
+          scan(document.body);
+        }
+      }, 16);
+    }
+
+    function normaliseCoordinate(value, maximum) {
+      if (maximum <= 0) {
+        return 0.5;
+      }
+
+      var coordinate = value / maximum;
+      if (coordinate < 0) {
+        return 0;
+      }
+      if (coordinate > 1) {
+        return 1;
+      }
+      return coordinate;
+    }
+
+    function fireConfetti(element, memeType) {
+      if (typeof window.confetti !== "function") {
+        return;
+      }
+
+      var rect = element.getBoundingClientRect();
+      var origin = {
+        x: normaliseCoordinate(rect.left + (rect.width / 2), window.innerWidth || document.documentElement.clientWidth),
+        y: normaliseCoordinate(rect.top + (rect.height / 2), window.innerHeight || document.documentElement.clientHeight)
+      };
+      var colours = memeType === "420"
+        ? ["#1b7a1b", "#2ecc40", "#7cfc00", "#3a5f0b", "#9acd32", "#006400"]
+        : ["#ff0000", "#ffd400", "#1e90ff", "#ff69b4", "#00cc00"];
+      var particleCount = memeType === "420" ? 60 : 45;
+      var options = {
+        colors: colours,
+        disableForReducedMotion: true,
+        origin: origin,
+        scalar: 0.9,
+        spread: 90,
+        startVelocity: 32,
+        zIndex: 2000
+      };
+
+      window.confetti(Object.assign({}, options, {
+        angle: 60,
+        drift: -0.2,
+        particleCount: particleCount
+      }));
+      window.confetti(Object.assign({}, options, {
+        angle: 120,
+        drift: 0.2,
+        particleCount: particleCount
+      }));
+    }
+
+    function findHighlightTarget(target) {
+      if (!target || target.nodeType !== Node.ELEMENT_NODE) {
+        return null;
+      }
+      return target.closest("." + highlightClass);
+    }
+
+    function shouldRescan(mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var mutation = mutations[i];
+
+        if (mutation.type === "characterData") {
+          if (!isIgnoredTextNode(mutation.target)) {
+            return true;
+          }
+          continue;
+        }
+
+        if (mutation.type !== "childList") {
+          continue;
+        }
+
+        for (var j = 0; j < mutation.addedNodes.length; j++) {
+          var addedNode = mutation.addedNodes[j];
+
+          if (addedNode.nodeType === Node.TEXT_NODE) {
+            if (!isIgnoredTextNode(addedNode)) {
+              return true;
+            }
+            continue;
+          }
+
+          if (addedNode.nodeType === Node.ELEMENT_NODE) {
+            if (addedNode.classList && addedNode.classList.contains(highlightClass)) {
+              continue;
+            }
+            if (addedNode.closest && addedNode.closest("." + highlightClass)) {
+              continue;
+            }
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    function init() {
+      if (!document.body) {
+        return;
+      }
+
+      scan(document.body);
+
+      var observer = new MutationObserver(function(mutations) {
+        if (shouldRescan(mutations)) {
+          queueScan();
+        }
+      });
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+
+      document.addEventListener("click", function(event) {
+        var target = findHighlightTarget(event.target);
+        if (target) {
+          fireConfetti(target, target.getAttribute("data-meme"));
+        }
+      });
+
+      document.addEventListener("keydown", function(event) {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+
+        var target = findHighlightTarget(event.target);
+        if (!target) {
+          return;
+        }
+
+        event.preventDefault();
+        fireConfetti(target, target.getAttribute("data-meme"));
+      });
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+      return;
+    }
+
+    init();
+  })();
+</script>
+`

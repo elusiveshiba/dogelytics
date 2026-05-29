@@ -44,8 +44,12 @@ func TestAdminHandlerRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "Registration Disabled") {
-		t.Fatalf("expected registration disabled page, got %q", rec.Body.String())
+	body := rec.Body.String()
+	if !strings.Contains(body, "Registration Disabled") {
+		t.Fatalf("expected registration disabled page, got %q", body)
+	}
+	if strings.Contains(body, "meme-highlight") || strings.Contains(body, "canvas-confetti@1.9.4") {
+		t.Fatalf("did not expect public meme-number assets on admin page in %q", body)
 	}
 }
 
@@ -116,6 +120,8 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 		"regionCurrency",
 		"navigator.languages",
 		"currencySelect.addEventListener('change'",
+		"meme-highlight",
+		"canvas-confetti@1.9.4",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected dashboard conversion UI to contain %q in %q", want, body)
@@ -243,6 +249,8 @@ func TestDashboardDocsRoute(t *testing.T) {
 		`src="https://fetch.dogecoin.org/doge-qr.js"`,
 		`<doge-qr address="DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz" size="sm" background="#fff" fill="#000"></doge-qr>`,
 		"applyMinimised(true)",
+		"meme-highlight",
+		"canvas-confetti@1.9.4",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected docs page to contain %q in %q", want, body)

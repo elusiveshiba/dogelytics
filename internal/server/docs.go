@@ -362,11 +362,12 @@ body {
       <pre class="docs-code"><code>{
   "ok": true,
   "indexer_height": 5900000,
-  "blocks_height": 6224976,
-  "headers_height": 6224976
+  "core_blocks_height": 6224976,
+  "core_headers_height": 6224976,
+  "core_sync_updated_at": "2026-06-01T04:00:00Z"
 }</code></pre>
-      <p><code>indexer_height</code> is the last block indexed by the indexer, <code>blocks_height</code> is the local Core blocks height reported by the indexer, and <code>headers_height</code> is the best known chain tip from headers reported by the indexer.</p>
-      <p>If the indexer sync heights are unavailable, this endpoint still returns <code>ok</code> and <code>indexer_height</code>, but omits <code>blocks_height</code> and <code>headers_height</code>.</p>
+      <p><code>indexer_height</code> is the last block indexed by the indexer, <code>core_blocks_height</code> is the local Core blocks height reported by the indexer, <code>core_headers_height</code> is the best known chain tip from headers reported by the indexer, and <code>core_sync_updated_at</code> is when the indexer last refreshed those Core sync heights.</p>
+      <p>If the indexer sync heights are unavailable, this endpoint still returns <code>ok</code> and <code>indexer_height</code>, but omits <code>core_blocks_height</code>, <code>core_headers_height</code>, and <code>core_sync_updated_at</code>.</p>
     </div>
   </div>
 

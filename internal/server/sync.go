@@ -3,13 +3,15 @@ package server
 import (
 	"context"
 	"log"
+	"time"
 )
 
 type chainProgress struct {
-	IndexedHeight    int64
-	BlocksHeight     int64
-	HeadersHeight    int64
-	IndexedPercent   *float64
+	IndexerHeight     int64
+	CoreBlocksHeight  int64
+	CoreHeadersHeight int64
+	CoreSyncUpdatedAt *time.Time
+	IndexedPercent    *float64
 }
 
 func (s *Server) loadChainProgress(ctx context.Context) (chainProgress, bool) {
@@ -24,15 +26,16 @@ func (s *Server) loadChainProgress(ctx context.Context) (chainProgress, bool) {
 	}
 
 	progress := chainProgress{
-		IndexedHeight: syncHeights.IndexedHeight,
+		IndexerHeight:     syncHeights.IndexerHeight,
+		CoreSyncUpdatedAt: syncHeights.CoreSyncUpdatedAt,
 	}
 
-	if syncHeights.BlocksHeight != nil {
-		progress.BlocksHeight = *syncHeights.BlocksHeight
+	if syncHeights.CoreBlocksHeight != nil {
+		progress.CoreBlocksHeight = *syncHeights.CoreBlocksHeight
 	}
-	if syncHeights.HeadersHeight != nil {
-		progress.HeadersHeight = *syncHeights.HeadersHeight
-		progress.IndexedPercent = percentOf(progress.IndexedHeight, progress.HeadersHeight)
+	if syncHeights.CoreHeadersHeight != nil {
+		progress.CoreHeadersHeight = *syncHeights.CoreHeadersHeight
+		progress.IndexedPercent = percentOf(progress.IndexerHeight, progress.CoreHeadersHeight)
 	}
 
 	return progress, true

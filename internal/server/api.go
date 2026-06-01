@@ -28,9 +28,10 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		OK: true,
 	}
 	if progress, ok := s.loadChainProgress(r.Context()); ok {
-		response.IndexerHeight = progress.IndexedHeight
-		response.BlocksHeight = progress.BlocksHeight
-		response.HeadersHeight = progress.HeadersHeight
+		response.IndexerHeight = progress.IndexerHeight
+		response.CoreBlocksHeight = progress.CoreBlocksHeight
+		response.CoreHeadersHeight = progress.CoreHeadersHeight
+		response.CoreSyncUpdatedAt = progress.CoreSyncUpdatedAt
 	} else {
 		height, err := s.indexerStore.CurrentHeight(r.Context())
 		if err != nil {

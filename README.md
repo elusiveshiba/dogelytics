@@ -282,16 +282,18 @@ curl "http://localhost:4420/health"
 {
   "ok": true,
   "indexer_height": 5900000,
-  "blocks_height": 6224976,
-  "headers_height": 6224976
+  "core_blocks_height": 6224976,
+  "core_headers_height": 6224976,
+  "core_sync_updated_at": "2026-06-01T04:00:00Z"
 }
 ```
 
 - `indexer_height`: last block indexed by the indexer.
-- `blocks_height`: local Core blocks height as reported by the indexer.
-- `headers_height`: best known chain tip from headers as reported by the indexer.
+- `core_blocks_height`: local Core blocks height as reported by the indexer.
+- `core_headers_height`: best known chain tip from headers as reported by the indexer.
+- `core_sync_updated_at`: when the indexer last refreshed Core sync heights.
 
-If the indexer sync heights are unavailable, `/health` still returns `ok` and `indexer_height`, but omits `blocks_height` and `headers_height`.
+If the indexer sync heights are unavailable, `/health` still returns `ok` and `indexer_height`, but omits `core_blocks_height`, `core_headers_height`, and `core_sync_updated_at`.
 
 **Errors:**
 
@@ -327,9 +329,10 @@ Example dashboard stats response:
 ```json
 {
   "available": true,
-  "height": 5900000,
-  "blocks_height": 6224976,
-  "headers_height": 6224976,
+  "indexer_height": 5900000,
+  "core_blocks_height": 6224976,
+  "core_headers_height": 6224976,
+  "core_sync_updated_at": "2026-06-01T04:00:00Z",
   "indexed_percent": 94.7792,
   "total_wallets_checked": 77,
   "wallets_checked_last_24h": 12,

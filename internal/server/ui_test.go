@@ -168,10 +168,10 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 11px;") {
 		t.Fatalf("expected centred tips toggle styling in %q", body)
 	}
-	if !strings.Contains(body, "formatIndexedProgress(payload.height, payload.headers_height)") {
+	if !strings.Contains(body, "formatIndexedProgress(payload.indexer_height, payload.core_headers_height)") {
 		t.Fatalf("expected indexed progress formatting in %q", body)
 	}
-	if !strings.Contains(body, "formatIndexedProgress(payload.blocks_height, payload.headers_height)") {
+	if !strings.Contains(body, "formatIndexedProgress(payload.core_blocks_height, payload.core_headers_height)") {
 		t.Fatalf("expected blocks progress formatting in %q", body)
 	}
 	if !strings.Contains(body, "loadDashboardStats({ autoRefresh: true });") || !strings.Contains(body, "60000") {
@@ -225,8 +225,9 @@ func TestDashboardDocsRoute(t *testing.T) {
 		"Authorization: Bearer YOUR_API_KEY",
 		"GET /health",
 		"indexer_height",
-		"blocks_height",
-		"headers_height",
+		"core_blocks_height",
+		"core_headers_height",
+		"core_sync_updated_at",
 		"best known chain tip from headers",
 		"Dashboard Helper APIs",
 		"GET /api/dashboard-stats",
@@ -373,9 +374,9 @@ func TestDashboardStatsWithoutAuthStore(t *testing.T) {
 	})
 	srv.syncSource = fakeSyncSource{
 		syncHeights: indexer.SyncHeights{
-			IndexedHeight: 777,
-			BlocksHeight:  int64Ptr(900),
-			HeadersHeight: int64Ptr(1000),
+			IndexerHeight:     777,
+			CoreBlocksHeight:  int64Ptr(900),
+			CoreHeadersHeight: int64Ptr(1000),
 		},
 	}
 
@@ -394,13 +395,13 @@ func TestDashboardStatsWithoutAuthStore(t *testing.T) {
 	if resp.Available {
 		t.Fatalf("expected unavailable stats response, got %+v", resp)
 	}
-	if resp.Height != 777 {
+	if resp.IndexerHeight != 777 {
 		t.Fatalf("expected height 777, got %+v", resp)
 	}
-	if resp.BlocksHeight != 900 {
+	if resp.CoreBlocksHeight != 900 {
 		t.Fatalf("expected blocks height 900, got %+v", resp)
 	}
-	if resp.HeadersHeight != 1000 {
+	if resp.CoreHeadersHeight != 1000 {
 		t.Fatalf("expected headers height 1000, got %+v", resp)
 	}
 	if resp.UniqueWalletsChecked != 0 {
@@ -430,7 +431,7 @@ func TestDashboardStatsIgnoresSyncHeightErrors(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode dashboard stats response: %v", err)
 	}
-	if resp.HeadersHeight != 0 || resp.IndexedPercent != nil {
+	if resp.CoreHeadersHeight != 0 || resp.IndexedPercent != nil {
 		t.Fatalf("expected absent sync progress, got %+v", resp)
 	}
 }

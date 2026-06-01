@@ -11,10 +11,10 @@ import (
 
 // SyncHeights describes the indexer-owned sync heights exposed over HTTP.
 type SyncHeights struct {
-	IndexedHeight int64
-	BlocksHeight  *int64
-	HeadersHeight *int64
-	UpdatedAt     *time.Time
+	IndexerHeight     int64
+	CoreBlocksHeight  *int64
+	CoreHeadersHeight *int64
+	CoreSyncUpdatedAt *time.Time
 }
 
 // SyncClient fetches sync-height data from the indexer HTTP API.
@@ -55,22 +55,19 @@ func (c *SyncClient) SyncHeights(ctx context.Context) (SyncHeights, error) {
 	}
 
 	var payload struct {
-		IndexedHeight *int64     `json:"indexed_height"`
-		BlocksHeight  *int64     `json:"blocks_height"`
-		HeadersHeight *int64     `json:"headers_height"`
-		UpdatedAt     *time.Time `json:"sync_updated_at"`
+		Height            int64      `json:"height"`
+		CoreBlocksHeight  *int64     `json:"core_blocks_height"`
+		CoreHeadersHeight *int64     `json:"core_headers_height"`
+		CoreSyncUpdatedAt *time.Time `json:"core_sync_updated_at"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return SyncHeights{}, fmt.Errorf("decode indexer sync heights: %w", err)
 	}
-	if payload.IndexedHeight == nil {
-		return SyncHeights{}, fmt.Errorf("indexer sync heights missing indexed_height")
-	}
 
 	return SyncHeights{
-		IndexedHeight: *payload.IndexedHeight,
-		BlocksHeight:  payload.BlocksHeight,
-		HeadersHeight: payload.HeadersHeight,
-		UpdatedAt:     payload.UpdatedAt,
+		IndexerHeight:     payload.Height,
+		CoreBlocksHeight:  payload.CoreBlocksHeight,
+		CoreHeadersHeight: payload.CoreHeadersHeight,
+		CoreSyncUpdatedAt: payload.CoreSyncUpdatedAt,
 	}, nil
 }

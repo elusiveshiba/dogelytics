@@ -123,9 +123,9 @@ func TestHandleHealthSuccess(t *testing.T) {
 	srv := newTestServer(store, &config.Config{CorsOrigin: "*"})
 	srv.syncSource = fakeSyncSource{
 		syncHeights: indexer.SyncHeights{
-			IndexedHeight: 123,
-			BlocksHeight:  int64Ptr(900),
-			HeadersHeight: int64Ptr(1000),
+			IndexerHeight:     123,
+			CoreBlocksHeight:  int64Ptr(900),
+			CoreHeadersHeight: int64Ptr(1000),
 		},
 	}
 
@@ -145,7 +145,7 @@ func TestHandleHealthSuccess(t *testing.T) {
 	if !resp.OK || resp.IndexerHeight != 123 {
 		t.Fatalf("unexpected health response: %+v", resp)
 	}
-	if resp.BlocksHeight != 900 || resp.HeadersHeight != 1000 {
+	if resp.CoreBlocksHeight != 900 || resp.CoreHeadersHeight != 1000 {
 		t.Fatalf("unexpected health heights: %+v", resp)
 	}
 
@@ -153,7 +153,7 @@ func TestHandleHealthSuccess(t *testing.T) {
 	if err := json.Unmarshal(body, &raw); err != nil {
 		t.Fatalf("decode raw health response: %v", err)
 	}
-	for _, field := range []string{"height", "indexed_percent", "core_synced_percent", "core_height", "blockchain_height"} {
+	for _, field := range []string{"height", "indexed_percent", "core_synced_percent", "core_height", "blockchain_height", "blocks_height", "headers_height"} {
 		if _, ok := raw[field]; ok {
 			t.Fatalf("did not expect %q in health response: %+v", field, raw)
 		}

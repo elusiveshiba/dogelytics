@@ -829,10 +829,10 @@ body {
         setText('stat-total-wallets', formatInteger(payload.total_wallets_checked));
         setText('stat-unique-wallets', formatInteger(payload.unique_wallets_checked));
 
-        const indexedProgress = formatIndexedProgress(payload.height, payload.headers_height);
+        const indexedProgress = formatIndexedProgress(payload.indexer_height, payload.core_headers_height);
         setStatProgress('stat-indexed-percent', 'stat-indexed-detail', indexedProgress.main, indexedProgress.detail);
 
-        const blocksProgress = formatIndexedProgress(payload.blocks_height, payload.headers_height);
+        const blocksProgress = formatIndexedProgress(payload.core_blocks_height, payload.core_headers_height);
         setStatProgress(
           'stat-blocks-height',
           'stat-blocks-detail',
@@ -1013,9 +1013,10 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		Message:   "Usage statistics are currently unavailable.",
 	}
 	if progress, ok := s.loadChainProgress(r.Context()); ok {
-		response.Height = progress.IndexedHeight
-		response.BlocksHeight = progress.BlocksHeight
-		response.HeadersHeight = progress.HeadersHeight
+		response.IndexerHeight = progress.IndexerHeight
+		response.CoreBlocksHeight = progress.CoreBlocksHeight
+		response.CoreHeadersHeight = progress.CoreHeadersHeight
+		response.CoreSyncUpdatedAt = progress.CoreSyncUpdatedAt
 		response.IndexedPercent = progress.IndexedPercent
 	} else {
 		height, err := s.indexerStore.CurrentHeight(r.Context())
@@ -1023,7 +1024,7 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 			s.sendError(w, http.StatusInternalServerError, "database-error", "Failed to load indexer height")
 			return
 		}
-		response.Height = height
+		response.IndexerHeight = height
 	}
 
 	if !s.hasAuthStore() {

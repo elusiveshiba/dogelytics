@@ -156,11 +156,11 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "requestAnimationFrame(scrollTipsIntoView)") || !strings.Contains(body, "window.scrollBy({") {
 		t.Fatalf("expected tips widget expansion to scroll into view in %q", body)
 	}
-	if !strings.Contains(body, `src="https://fetch.dogecoin.org/doge-qr.js"`) {
-		t.Fatalf("expected doge-qr script in %q", body)
+	if !strings.Contains(body, `src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.5.0/lib/qr-code-styling.js"`) {
+		t.Fatalf("expected QR styling script in %q", body)
 	}
-	if !strings.Contains(body, `<doge-qr address="DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz" size="sm" background="#fff" fill="#000"></doge-qr>`) {
-		t.Fatalf("expected doge-qr element in %q", body)
+	if !strings.Contains(body, `<div id="tips-qr-code" class="tips-qr-code" aria-label="Dogecoin tip QR code"></div>`) || !strings.Contains(body, "new QRCodeStyling({") {
+		t.Fatalf("expected rendered QR code target in %q", body)
 	}
 	if !strings.Contains(body, "applyMinimised(true)") {
 		t.Fatalf("expected tips widget to start minimised in %q", body)
@@ -236,8 +236,9 @@ func TestDashboardDocsRoute(t *testing.T) {
 		"Such coffee?",
 		"Enjoying Dogelytics? Send a tip to:",
 		"DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz",
-		`src="https://fetch.dogecoin.org/doge-qr.js"`,
-		`<doge-qr address="DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz" size="sm" background="#fff" fill="#000"></doge-qr>`,
+		`src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.5.0/lib/qr-code-styling.js"`,
+		`<div id="tips-qr-code" class="tips-qr-code" aria-label="Dogecoin tip QR code"></div>`,
+		"new QRCodeStyling({",
 		"applyMinimised(true)",
 		"meme-highlight",
 		"canvas-confetti@1.9.4",

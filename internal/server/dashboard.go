@@ -294,6 +294,12 @@ body {
   margin-bottom: 5px;
   padding: 4px;
 }
+.tips-qr-code,
+.tips-qr-code svg {
+  display: block;
+  width: 80px;
+  height: 80px;
+}
 .tips-address-row {
   display: flex;
   align-items: center;
@@ -527,7 +533,7 @@ body {
 
   <div class="dashboard-actions">
 {{if .ShowTipsWidget}}
-<script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
 <div id="tips-widget" class="tips-widget minimised">
   <div class="tips-title">
     <span>Such coffee?</span>
@@ -536,7 +542,7 @@ body {
   <div class="tips-body" aria-hidden="true">
     <p>Enjoying Dogelytics? Send a tip to:</p>
     <div class="tips-qr">
-      <doge-qr address="{{.TipsAddress}}" size="sm" background="#fff" fill="#000"></doge-qr>
+      <div id="tips-qr-code" class="tips-qr-code" aria-label="Dogecoin tip QR code"></div>
     </div>
     <div id="tips-copy-row" class="tips-address-row">
       <code id="tips-address" class="tips-address">{{.TipsAddress}}</code>
@@ -919,8 +925,9 @@ body {
     const tipsBody = document.querySelector('#tips-widget .tips-body');
     const copyButton = document.getElementById('tips-copy-button');
     const address = document.getElementById('tips-address');
+    const qrTarget = document.getElementById('tips-qr-code');
     const status = document.getElementById('tips-status');
-    if (!widget || !toggle || !tipsBody || !copyButton || !address || !status) return;
+    if (!widget || !toggle || !tipsBody || !copyButton || !address || !qrTarget || !status) return;
     const tipsTransitionMs = 180;
     let closeTimer = 0;
 
@@ -963,6 +970,26 @@ body {
       window.setTimeout(scrollTipsIntoView, tipsTransitionMs);
     }
 
+    function renderTipQRCode() {
+      const tipAddress = (address.textContent || '').trim();
+      if (!tipAddress || typeof QRCodeStyling !== 'function') return;
+      qrTarget.textContent = '';
+      const qrCode = new QRCodeStyling({
+        width: 80,
+        height: 80,
+        type: 'svg',
+        data: 'dogecoin:' + tipAddress,
+        backgroundOptions: {
+          color: '#fff',
+        },
+        dotsOptions: {
+          color: '#000',
+        },
+      });
+      qrCode.append(qrTarget);
+    }
+
+    renderTipQRCode();
     applyMinimised(true);
 
     toggle.addEventListener('click', function() {

@@ -134,9 +134,9 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 		"Wallets",
 		"Blockchain",
 		"Total wallets checked (24h)",
-		"Unique wallets checked (24h)",
+		"Total unique wallets checked (24h)",
 		"Total wallets checked",
-		"Unique wallets checked",
+		"Total unique wallets checked",
 		"Indexed Height",
 		"Dogecoin Core Height",
 		`id="stat-unique-wallets"`,
@@ -152,8 +152,8 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if docsButtonIndex == -1 || headerLinksIndex == -1 || dashboardActionsIndex == -1 || !(headerLinksIndex < docsButtonIndex && docsButtonIndex < dashboardActionsIndex) {
 		t.Fatalf("expected docs button in header links before dashboard actions in %q", body)
 	}
-	if !strings.Contains(body, `class="dashboard-actions"`) || !strings.Contains(body, "justify-content: flex-end;") || !strings.Contains(body, "margin-left: auto;") {
-		t.Fatalf("expected mobile bottom actions layout in %q", body)
+	if !strings.Contains(body, `class="dashboard-actions"`) || !strings.Contains(body, "justify-content: center;") || !strings.Contains(body, "margin: 0 auto;") {
+		t.Fatalf("expected centred mobile bottom actions layout in %q", body)
 	}
 	if !strings.Contains(body, "Such coffee?") {
 		t.Fatalf("expected tips widget in %q", body)
@@ -166,6 +166,12 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	}
 	if strings.Contains(body, "Copy address") {
 		t.Fatalf("did not expect copy button text in %q", body)
+	}
+	if !strings.Contains(body, `id="tips-copy-button"`) || strings.Contains(body, `id="tips-copy-row" class="tips-address-row" role="button"`) {
+		t.Fatalf("expected tips copy to be attached only to the copy button in %q", body)
+	}
+	if !strings.Contains(body, "requestAnimationFrame(scrollTipsIntoView)") || !strings.Contains(body, "window.scrollBy({") {
+		t.Fatalf("expected tips widget expansion to scroll into view in %q", body)
 	}
 	if !strings.Contains(body, `src="https://fetch.dogecoin.org/doge-qr.js"`) {
 		t.Fatalf("expected doge-qr script in %q", body)
@@ -287,8 +293,14 @@ func TestDashboardDocsRoute(t *testing.T) {
 	if dashboardButtonIndex == -1 || headerLinksIndex == -1 || dashboardActionsIndex == -1 || !(headerLinksIndex < dashboardButtonIndex && dashboardButtonIndex < dashboardActionsIndex) {
 		t.Fatalf("expected dashboard button in docs header links before dashboard actions in %q", body)
 	}
-	if !strings.Contains(body, "justify-content: flex-end;") || !strings.Contains(body, "margin-left: auto;") {
-		t.Fatalf("expected docs mobile tips layout in %q", body)
+	if !strings.Contains(body, "justify-content: center;") || !strings.Contains(body, "margin: 0 auto;") {
+		t.Fatalf("expected centred docs mobile tips layout in %q", body)
+	}
+	if !strings.Contains(body, `id="tips-copy-button"`) || strings.Contains(body, `id="tips-copy-row" class="tips-address-row" role="button"`) {
+		t.Fatalf("expected docs tips copy to be attached only to the copy button in %q", body)
+	}
+	if !strings.Contains(body, "requestAnimationFrame(scrollTipsIntoView)") || !strings.Contains(body, "window.scrollBy({") {
+		t.Fatalf("expected docs tips widget expansion to scroll into view in %q", body)
 	}
 	baseIndex := strings.Index(body, "<span>Base URL</span>")
 	apiKeysIndex := strings.Index(body, "<span>API Keys</span>")

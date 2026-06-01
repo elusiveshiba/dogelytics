@@ -175,7 +175,6 @@ body {
   border-left: 1px solid #a08030;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
-  cursor: pointer;
   padding: 4px;
 }
 .tips-widget.minimised .tips-body {
@@ -194,6 +193,25 @@ body {
   flex: 0 0 13px;
   width: 13px;
   height: 13px;
+  display: block;
+}
+.tips-copy-button {
+  flex: 0 0 18px;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tips-copy-button:active {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
 }
 .tips-copy-icon::before,
 .tips-copy-icon::after {
@@ -224,7 +242,7 @@ body {
   .dashboard-actions {
     display: flex;
     align-items: flex-end;
-    justify-content: flex-end;
+    justify-content: center;
     margin-top: 12px;
     padding-bottom: 12px;
   }
@@ -232,7 +250,7 @@ body {
     position: static;
     flex: 0 1 auto;
     width: auto;
-    margin-left: auto;
+    margin: 0 auto;
   }
 }
 </style>
@@ -375,7 +393,6 @@ GET /api/dashboard-stats</code></pre>
       </table>
     </div>
   </div>
-</div>
 <div class="dashboard-actions">
 {{if .ShowTipsWidget}}
 <script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>
@@ -389,24 +406,37 @@ GET /api/dashboard-stats</code></pre>
     <div class="tips-qr">
       <doge-qr address="{{.TipsAddress}}" size="sm" background="#fff" fill="#000"></doge-qr>
     </div>
-    <div id="tips-copy-row" class="tips-address-row" role="button" tabindex="0" title="Copy tip address">
+    <div id="tips-copy-row" class="tips-address-row">
       <code id="tips-address" class="tips-address">{{.TipsAddress}}</code>
-      <span class="tips-copy-icon" aria-hidden="true"></span>
+      <button id="tips-copy-button" type="button" class="tips-copy-button" title="Copy tip address" aria-label="Copy tip address">
+        <span class="tips-copy-icon" aria-hidden="true"></span>
+      </button>
     </div>
     <div id="tips-status" class="dashboard-status" aria-live="polite"></div>
   </div>
 </div>
 {{end}}
 </div>
+</div>
 {{if .ShowTipsWidget}}
 <script>
   (function() {
     const widget = document.getElementById('tips-widget');
     const toggle = document.getElementById('tips-toggle');
-    const copyRow = document.getElementById('tips-copy-row');
+    const copyButton = document.getElementById('tips-copy-button');
     const address = document.getElementById('tips-address');
     const status = document.getElementById('tips-status');
-    if (!widget || !toggle || !copyRow || !address || !status) return;
+    if (!widget || !toggle || !copyButton || !address || !status) return;
+
+    function scrollTipsIntoView() {
+      const rect = widget.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      if (rect.bottom <= viewportHeight) return;
+      window.scrollBy({
+        top: rect.bottom - viewportHeight + 16,
+        behavior: 'smooth',
+      });
+    }
 
     function applyMinimised(minimised) {
       widget.classList.toggle('minimised', minimised);
@@ -415,6 +445,9 @@ GET /api/dashboard-stats</code></pre>
       try {
         localStorage.setItem('dogelytics_tips_minimised', minimised ? 'true' : 'false');
       } catch (_) {}
+      if (!minimised) {
+        requestAnimationFrame(scrollTipsIntoView);
+      }
     }
 
     applyMinimised(true);
@@ -435,13 +468,7 @@ GET /api/dashboard-stats</code></pre>
       }
     }
 
-    copyRow.addEventListener('click', copyTipAddress);
-    copyRow.addEventListener('keydown', function(event) {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        copyTipAddress();
-      }
-    });
+    copyButton.addEventListener('click', copyTipAddress);
   })();
 </script>
 {{end}}

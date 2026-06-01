@@ -275,6 +275,10 @@ body {
 }
 .tips-body {
   padding: 6px;
+  max-height: 300px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 180ms ease, opacity 180ms ease, padding 180ms ease;
 }
 .tips-body p {
   margin-bottom: 5px;
@@ -293,16 +297,23 @@ body {
 .tips-address-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   background: #fff;
   border-top: 1px solid #a08030;
   border-left: 1px solid #a08030;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
-  padding: 4px;
+  padding: 4px 6px 4px 4px;
 }
 .tips-widget.minimised .tips-body {
   display: none;
+}
+.tips-widget.opening .tips-body,
+.tips-widget.closing .tips-body {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .tips-address {
   flex: 1;
@@ -320,10 +331,11 @@ body {
   display: block;
 }
 .tips-copy-button {
-  flex: 0 0 18px;
-  width: 18px;
-  min-width: 18px;
-  height: 18px;
+  box-sizing: border-box;
+  flex: 0 0 20px;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
   margin: 0;
   padding: 0;
   display: flex;
@@ -331,9 +343,9 @@ body {
   justify-content: center;
 }
 .tips-copy-button:active {
-  width: 18px;
-  min-width: 18px;
-  height: 18px;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
   margin: 0;
   padding: 0;
 }
@@ -517,12 +529,12 @@ body {
   <div class="dashboard-actions">
 {{if .ShowTipsWidget}}
 <script type="module" src="https://fetch.dogecoin.org/doge-qr.js"></script>
-<div id="tips-widget" class="tips-widget">
+<div id="tips-widget" class="tips-widget minimised">
   <div class="tips-title">
     <span>Such coffee?</span>
-    <button id="tips-toggle" type="button" class="tips-toggle" aria-label="Minimise tips">-</button>
+    <button id="tips-toggle" type="button" class="tips-toggle" aria-label="Expand tips">+</button>
   </div>
-  <div class="tips-body">
+  <div class="tips-body" aria-hidden="true">
     <p>Enjoying Dogelytics? Send a tip to:</p>
     <div class="tips-qr">
       <doge-qr address="{{.TipsAddress}}" size="sm" background="#fff" fill="#000"></doge-qr>
@@ -905,10 +917,13 @@ body {
   (function() {
     const widget = document.getElementById('tips-widget');
     const toggle = document.getElementById('tips-toggle');
+    const tipsBody = document.querySelector('#tips-widget .tips-body');
     const copyButton = document.getElementById('tips-copy-button');
     const address = document.getElementById('tips-address');
     const status = document.getElementById('tips-status');
-    if (!widget || !toggle || !copyButton || !address || !status) return;
+    if (!widget || !toggle || !tipsBody || !copyButton || !address || !status) return;
+    const tipsTransitionMs = 180;
+    let closeTimer = 0;
 
     function scrollTipsIntoView() {
       const rect = widget.getBoundingClientRect();
@@ -921,15 +936,32 @@ body {
     }
 
     function applyMinimised(minimised) {
-      widget.classList.toggle('minimised', minimised);
+      tipsBody.setAttribute('aria-hidden', minimised ? 'true' : 'false');
       toggle.textContent = minimised ? '+' : '-';
       toggle.setAttribute('aria-label', minimised ? 'Expand tips' : 'Minimise tips');
       try {
         localStorage.setItem('dogelytics_tips_minimised', minimised ? 'true' : 'false');
       } catch (_) {}
-      if (!minimised) {
-        requestAnimationFrame(scrollTipsIntoView);
+      window.clearTimeout(closeTimer);
+      widget.classList.remove('opening', 'closing');
+      if (minimised) {
+        if (!widget.classList.contains('minimised')) {
+          widget.classList.add('closing');
+          closeTimer = window.setTimeout(function() {
+            widget.classList.add('minimised');
+            widget.classList.remove('closing');
+            closeTimer = 0;
+          }, tipsTransitionMs);
+        }
+        return;
       }
+      widget.classList.remove('minimised');
+      widget.classList.add('opening');
+      requestAnimationFrame(function() {
+        widget.classList.remove('opening');
+      });
+      requestAnimationFrame(scrollTipsIntoView);
+      window.setTimeout(scrollTipsIntoView, tipsTransitionMs);
     }
 
     applyMinimised(true);

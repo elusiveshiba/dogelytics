@@ -5,7 +5,7 @@ A lightweight REST API service that provides Dogecoin wallet balance information
 ## Features
 
 - **Balance Queries**: Incoming, available, outgoing, and current balance for any Dogecoin address
-- **Health Checks**: Monitor indexer, Dogecoin Core, and blockchain sync heights
+- **Health Checks**: Monitor indexer, blocks, and headers sync heights from the indexer API
 - **Rate Limiting**: Per-IP and per-API key rate limiting
 - **API Key Management**: User accounts with API key generation, revocation, and expiry
 - **Usage Statistics**: Real-time analytics with interactive charts and filtering
@@ -110,6 +110,12 @@ At minimum, set the indexer database URL:
 INDEXER_DBURL=postgres://indexer:yourpassword@localhost:5432/indexer?sslmode=disable
 ```
 
+If the indexer API is not running on `http://localhost:8000`, also set:
+
+```bash
+INDEXER_API_URL=http://localhost:8000
+```
+
 If you enable the admin UI, also set the Dogelytics database URL and a session secret:
 
 ```bash
@@ -146,7 +152,7 @@ make build
 ./dogelytics
 ```
 
-The [Dogecoin Indexer](https://github.com/dogeorg/indexer) must be running with a reachable PostgreSQL database for balance queries to work.
+The [Dogecoin Indexer](https://github.com/dogeorg/indexer) must be running with a reachable PostgreSQL database for balance queries and a reachable HTTP API for sync heights.
 
 ## Configuration Reference
 
@@ -160,12 +166,10 @@ Configuration is loaded in this order (later sources override earlier ones):
 | Environment Variable | Flag | Description | Default |
 |---------------------|------|-------------|---------|
 | `INDEXER_DBURL` | `-indexer-dburl` | PostgreSQL URL for indexer database (blockchain data) | `postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable` |
+| `INDEXER_API_URL` | `-indexer-api-url` | Indexer API base URL for sync heights | `http://localhost:8000` |
 | `DOGELYTICS_DBURL` | `-dogelytics-dburl` | PostgreSQL URL for dogelytics database (users, keys, sessions) | `postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable` |
 | `BIND` | `-bind` | HTTP server bind address | `localhost:4420` |
 | `CORS` | `-cors` | CORS allowed origin (`*` for all) | `*` |
-| `CORE_RPC_URL` | `-core-rpc-url` | Dogecoin Core RPC URL for health and dashboard blockchain sync heights | _(empty)_ |
-| `CORE_RPC_USER` | `-core-rpc-user` | Dogecoin Core RPC username | _(empty)_ |
-| `CORE_RPC_PASSWORD` | `-core-rpc-password` | Dogecoin Core RPC password | _(empty)_ |
 | `CONFIRMATIONS` | `-confirmations` | Confirmations required for available balance | `6` |
 | `RATELIMIT` | `-ratelimit` | Max requests per IP per minute (0 = disabled) | `10` |
 | `API_KEY_RATELIMIT` | `-apikey-ratelimit` | Max requests per API key per minute (0 = disabled) | `120` |
@@ -268,7 +272,7 @@ Conversion rates are sourced from CoinGecko and cached locally in the Dogelytics
 
 ### GET /health
 
-Returns service status and the raw sync heights used to compare Dogelytics indexing, the local Dogecoin Core node, and the best known blockchain height.
+Returns service status and the raw sync heights Dogelytics reads from the indexer API.
 
 ```bash
 curl "http://localhost:4420/health"
@@ -278,16 +282,16 @@ curl "http://localhost:4420/health"
 {
   "ok": true,
   "indexer_height": 5900000,
-  "core_height": 6224976,
-  "blockchain_height": 6224976
+  "blocks_height": 6224976,
+  "headers_height": 6224976
 }
 ```
 
-- `indexer_height`: last block processed by Dogelytics/indexer data.
-- `core_height`: local Dogecoin Core block height.
-- `blockchain_height`: Dogecoin Core's best known chain tip from headers.
+- `indexer_height`: last block indexed by the indexer.
+- `blocks_height`: local Core blocks height as reported by the indexer.
+- `headers_height`: best known chain tip from headers as reported by the indexer.
 
-If Dogecoin Core RPC is not configured or is unavailable, `/health` still returns `ok` and `indexer_height`, but omits `core_height` and `blockchain_height`.
+If the indexer sync heights are unavailable, `/health` still returns `ok` and `indexer_height`, but omits `blocks_height` and `headers_height`.
 
 **Errors:**
 
@@ -316,7 +320,7 @@ These routes are served from the dashboard UI host when `ENABLE_DASHBOARD_UI=tru
 |-------|-------------|
 | `GET /api/balance?address=<address>` | Same response and errors as `GET /balance` |
 | `GET /api/conversion?currency=<currency>` | Same response and errors as `GET /conversion` |
-| `GET /api/dashboard-stats` | Public dashboard stats, including wallet lookup counters and indexer/Core sync metrics |
+| `GET /api/dashboard-stats` | Public dashboard stats, including wallet lookup counters and indexer sync metrics |
 
 Example dashboard stats response:
 
@@ -324,8 +328,8 @@ Example dashboard stats response:
 {
   "available": true,
   "height": 5900000,
-  "core_height": 6224976,
-  "blockchain_height": 6224976,
+  "blocks_height": 6224976,
+  "headers_height": 6224976,
   "indexed_percent": 94.7792,
   "total_wallets_checked": 77,
   "wallets_checked_last_24h": 12,

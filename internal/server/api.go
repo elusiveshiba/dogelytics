@@ -24,19 +24,20 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	height, err := s.indexerStore.CurrentHeight(r.Context())
-	if err != nil {
-		s.sendError(w, http.StatusInternalServerError, "database-error", fmt.Sprintf("Database error: %v", err))
-		return
-	}
-
 	response := HealthResponse{
-		OK:            true,
-		IndexerHeight: height,
+		OK: true,
 	}
-	if progress, ok := s.loadChainProgress(r.Context(), height); ok {
-		response.CoreHeight = progress.CoreHeight
-		response.BlockchainHeight = progress.BlockchainHeight
+	if progress, ok := s.loadChainProgress(r.Context()); ok {
+		response.IndexerHeight = progress.IndexedHeight
+		response.BlocksHeight = progress.BlocksHeight
+		response.HeadersHeight = progress.HeadersHeight
+	} else {
+		height, err := s.indexerStore.CurrentHeight(r.Context())
+		if err != nil {
+			s.sendError(w, http.StatusInternalServerError, "database-error", fmt.Sprintf("Database error: %v", err))
+			return
+		}
+		response.IndexerHeight = height
 	}
 
 	s.sendJSON(w, http.StatusOK, response)

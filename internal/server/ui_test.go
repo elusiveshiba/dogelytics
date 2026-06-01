@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"math"
@@ -14,22 +13,6 @@ import (
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
 )
-
-type fakeCoreClient struct {
-	coreHeight       int64
-	blockchainHeight int64
-	err              error
-}
-
-func (f fakeCoreClient) ChainState(context.Context) (CoreState, error) {
-	if f.err != nil {
-		return CoreState{}, f.err
-	}
-	return CoreState{
-		CoreHeight:       f.coreHeight,
-		BlockchainHeight: f.blockchainHeight,
-	}, nil
-}
 
 func TestAdminHandlerRoutes(t *testing.T) {
 	srv := newTestServer(&fakeBalanceStore{}, &config.Config{
@@ -138,9 +121,9 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 		"Total wallets checked",
 		"Total unique wallets checked",
 		"Indexed Height",
-		"Dogecoin Core Height",
+		"Blocks Height",
 		`id="stat-unique-wallets"`,
-		`id="stat-core-height"`,
+		`id="stat-blocks-height"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected dashboard stats layout to contain %q in %q", want, body)
@@ -185,17 +168,17 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 11px;") {
 		t.Fatalf("expected centred tips toggle styling in %q", body)
 	}
-	if !strings.Contains(body, "formatIndexedProgress(payload.height, payload.blockchain_height)") {
+	if !strings.Contains(body, "formatIndexedProgress(payload.height, payload.headers_height)") {
 		t.Fatalf("expected indexed progress formatting in %q", body)
 	}
-	if !strings.Contains(body, "formatIndexedProgress(payload.core_height, payload.blockchain_height)") {
-		t.Fatalf("expected core progress formatting in %q", body)
+	if !strings.Contains(body, "formatIndexedProgress(payload.blocks_height, payload.headers_height)") {
+		t.Fatalf("expected blocks progress formatting in %q", body)
 	}
 	if !strings.Contains(body, "loadDashboardStats({ autoRefresh: true });") || !strings.Contains(body, "60000") {
 		t.Fatalf("expected dashboard stats auto refresh in %q", body)
 	}
-	if strings.Contains(body, "Blockchain Height") || strings.Contains(body, `id="stat-blockchain-height"`) {
-		t.Fatalf("did not expect standalone blockchain height field in %q", body)
+	if strings.Contains(body, "Dogecoin Core Height") || strings.Contains(body, `id="stat-core-height"`) {
+		t.Fatalf("did not expect legacy blocks height field in %q", body)
 	}
 	if !strings.Contains(body, "formatInteger(payload.unique_wallets_checked)") {
 		t.Fatalf("expected overall unique wallet formatting in %q", body)
@@ -242,9 +225,9 @@ func TestDashboardDocsRoute(t *testing.T) {
 		"Authorization: Bearer YOUR_API_KEY",
 		"GET /health",
 		"indexer_height",
-		"core_height",
-		"blockchain_height",
-		"best known blockchain height",
+		"blocks_height",
+		"headers_height",
+		"best known chain tip from headers",
 		"Dashboard Helper APIs",
 		"GET /api/dashboard-stats",
 		"unsupported-address",
@@ -354,6 +337,7 @@ func TestDashboardBalanceRateLimit(t *testing.T) {
 			},
 		},
 		nil,
+		nil,
 		&config.Config{
 			CorsOrigin:        "*",
 			Confirmations:     6,
@@ -387,7 +371,13 @@ func TestDashboardStatsWithoutAuthStore(t *testing.T) {
 		CorsOrigin:        "*",
 		EnableDashboardUI: true,
 	})
-	srv.coreClient = fakeCoreClient{coreHeight: 900, blockchainHeight: 1000}
+	srv.syncSource = fakeSyncSource{
+		syncHeights: indexer.SyncHeights{
+			IndexedHeight: 777,
+			BlocksHeight:  int64Ptr(900),
+			HeadersHeight: int64Ptr(1000),
+		},
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard-stats", nil)
 	rec := httptest.NewRecorder()
@@ -407,11 +397,11 @@ func TestDashboardStatsWithoutAuthStore(t *testing.T) {
 	if resp.Height != 777 {
 		t.Fatalf("expected height 777, got %+v", resp)
 	}
-	if resp.CoreHeight != 900 {
-		t.Fatalf("expected core height 900, got %+v", resp)
+	if resp.BlocksHeight != 900 {
+		t.Fatalf("expected blocks height 900, got %+v", resp)
 	}
-	if resp.BlockchainHeight != 1000 {
-		t.Fatalf("expected blockchain height 1000, got %+v", resp)
+	if resp.HeadersHeight != 1000 {
+		t.Fatalf("expected headers height 1000, got %+v", resp)
 	}
 	if resp.UniqueWalletsChecked != 0 {
 		t.Fatalf("expected zero overall unique wallets without auth store, got %+v", resp)
@@ -421,12 +411,12 @@ func TestDashboardStatsWithoutAuthStore(t *testing.T) {
 	}
 }
 
-func TestDashboardStatsIgnoresCoreHeightErrors(t *testing.T) {
+func TestDashboardStatsIgnoresSyncHeightErrors(t *testing.T) {
 	srv := newTestServer(&fakeBalanceStore{height: 777}, &config.Config{
 		CorsOrigin:        "*",
 		EnableDashboardUI: true,
 	})
-	srv.coreClient = fakeCoreClient{err: errors.New("core unavailable")}
+	srv.syncSource = fakeSyncSource{err: errors.New("indexer unavailable")}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard-stats", nil)
 	rec := httptest.NewRecorder()
@@ -440,7 +430,7 @@ func TestDashboardStatsIgnoresCoreHeightErrors(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode dashboard stats response: %v", err)
 	}
-	if resp.BlockchainHeight != 0 || resp.IndexedPercent != nil {
-		t.Fatalf("expected absent blockchain progress, got %+v", resp)
+	if resp.HeadersHeight != 0 || resp.IndexedPercent != nil {
+		t.Fatalf("expected absent sync progress, got %+v", resp)
 	}
 }

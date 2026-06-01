@@ -60,6 +60,7 @@ func run() error {
 
 	srv := server.NewServer(
 		indexerStore,
+		indexer.NewSyncClient(cfg.IndexerAPIURL, nil),
 		authStore,
 		cfg,
 		server.NewRateLimiter(cfg.RateLimit),

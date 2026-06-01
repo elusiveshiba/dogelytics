@@ -25,6 +25,11 @@ type fakeBalanceStore struct {
 	lastAddress []byte
 }
 
+type fakeSyncSource struct {
+	syncHeights indexer.SyncHeights
+	err         error
+}
+
 func (f *fakeBalanceStore) GetBalance(_ context.Context, scriptType doge.ScriptType, address []byte, _ int64) (indexer.Balance, error) {
 	f.lastScript = scriptType
 	f.lastAddress = append([]byte(nil), address...)
@@ -33,6 +38,13 @@ func (f *fakeBalanceStore) GetBalance(_ context.Context, scriptType doge.ScriptT
 
 func (f *fakeBalanceStore) CurrentHeight(context.Context) (int64, error) {
 	return f.height, f.heightErr
+}
+
+func (f fakeSyncSource) SyncHeights(context.Context) (indexer.SyncHeights, error) {
+	if f.err != nil {
+		return indexer.SyncHeights{}, f.err
+	}
+	return f.syncHeights, nil
 }
 
 type fakeConversionStore struct {
@@ -109,7 +121,13 @@ func TestHandlerRoutesAPIOnly(t *testing.T) {
 func TestHandleHealthSuccess(t *testing.T) {
 	store := &fakeBalanceStore{height: 123}
 	srv := newTestServer(store, &config.Config{CorsOrigin: "*"})
-	srv.coreClient = fakeCoreClient{coreHeight: 900, blockchainHeight: 1000}
+	srv.syncSource = fakeSyncSource{
+		syncHeights: indexer.SyncHeights{
+			IndexedHeight: 123,
+			BlocksHeight:  int64Ptr(900),
+			HeadersHeight: int64Ptr(1000),
+		},
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -127,7 +145,7 @@ func TestHandleHealthSuccess(t *testing.T) {
 	if !resp.OK || resp.IndexerHeight != 123 {
 		t.Fatalf("unexpected health response: %+v", resp)
 	}
-	if resp.CoreHeight != 900 || resp.BlockchainHeight != 1000 {
+	if resp.BlocksHeight != 900 || resp.HeadersHeight != 1000 {
 		t.Fatalf("unexpected health heights: %+v", resp)
 	}
 
@@ -135,7 +153,7 @@ func TestHandleHealthSuccess(t *testing.T) {
 	if err := json.Unmarshal(body, &raw); err != nil {
 		t.Fatalf("decode raw health response: %v", err)
 	}
-	for _, field := range []string{"height", "indexed_percent", "core_synced_percent"} {
+	for _, field := range []string{"height", "indexed_percent", "core_synced_percent", "core_height", "blockchain_height"} {
 		if _, ok := raw[field]; ok {
 			t.Fatalf("did not expect %q in health response: %+v", field, raw)
 		}
@@ -463,5 +481,9 @@ func TestDashboardConversionRouteUsesConversionHandler(t *testing.T) {
 }
 
 func newTestServer(store BalanceStore, cfg *config.Config) *Server {
-	return NewServer(store, nil, cfg, nil, nil)
+	return NewServer(store, nil, nil, cfg, nil, nil)
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
 }

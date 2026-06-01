@@ -357,16 +357,16 @@ body {
       <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
-      <p>Returns service status and the raw sync heights used to compare the indexer, local Dogecoin Core node, and best known blockchain height.</p>
+      <p>Returns service status and the raw sync heights Dogelytics reads from the indexer API.</p>
       <pre class="docs-code"><code>curl "https://api.dogelytics.com/health"</code></pre>
       <pre class="docs-code"><code>{
   "ok": true,
   "indexer_height": 5900000,
-  "core_height": 6224976,
-  "blockchain_height": 6224976
+  "blocks_height": 6224976,
+  "headers_height": 6224976
 }</code></pre>
-      <p><code>indexer_height</code> is the last block indexed by Dogelytics, <code>core_height</code> is the local Dogecoin Core block height, and <code>blockchain_height</code> is Core's best known chain tip from headers.</p>
-      <p>If Dogecoin Core RPC is not configured or is unavailable, this endpoint still returns <code>ok</code> and <code>indexer_height</code>, but omits <code>core_height</code> and <code>blockchain_height</code>.</p>
+      <p><code>indexer_height</code> is the last block indexed by the indexer, <code>blocks_height</code> is the local Core blocks height reported by the indexer, and <code>headers_height</code> is the best known chain tip from headers reported by the indexer.</p>
+      <p>If the indexer sync heights are unavailable, this endpoint still returns <code>ok</code> and <code>indexer_height</code>, but omits <code>blocks_height</code> and <code>headers_height</code>.</p>
     </div>
   </div>
 

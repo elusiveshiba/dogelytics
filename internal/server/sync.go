@@ -6,30 +6,36 @@ import (
 )
 
 type chainProgress struct {
-	CoreHeight       int64
-	BlockchainHeight int64
+	IndexedHeight    int64
+	BlocksHeight     int64
+	HeadersHeight    int64
 	IndexedPercent   *float64
 }
 
-func (s *Server) loadChainProgress(ctx context.Context, indexedHeight int64) (chainProgress, bool) {
-	if s.coreClient == nil {
+func (s *Server) loadChainProgress(ctx context.Context) (chainProgress, bool) {
+	if s.syncSource == nil {
 		return chainProgress{}, false
 	}
 
-	coreState, err := s.coreClient.ChainState(ctx)
+	syncHeights, err := s.syncSource.SyncHeights(ctx)
 	if err != nil {
-		log.Printf("[Dogelytics] failed to load blockchain height: %v", err)
-		return chainProgress{}, false
-	}
-	if coreState.BlockchainHeight <= 0 {
+		log.Printf("[Dogelytics] failed to load indexer sync heights: %v", err)
 		return chainProgress{}, false
 	}
 
-	return chainProgress{
-		CoreHeight:       coreState.CoreHeight,
-		BlockchainHeight: coreState.BlockchainHeight,
-		IndexedPercent:   percentOf(indexedHeight, coreState.BlockchainHeight),
-	}, true
+	progress := chainProgress{
+		IndexedHeight: syncHeights.IndexedHeight,
+	}
+
+	if syncHeights.BlocksHeight != nil {
+		progress.BlocksHeight = *syncHeights.BlocksHeight
+	}
+	if syncHeights.HeadersHeight != nil {
+		progress.HeadersHeight = *syncHeights.HeadersHeight
+		progress.IndexedPercent = percentOf(progress.IndexedHeight, progress.HeadersHeight)
+	}
+
+	return progress, true
 }
 
 func percentOf(height int64, total int64) *float64 {

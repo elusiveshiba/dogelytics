@@ -15,26 +15,31 @@ type BalanceStore interface {
 	CurrentHeight(ctx context.Context) (int64, error)
 }
 
+// SyncSource provides indexer-owned sync heights over HTTP.
+type SyncSource interface {
+	SyncHeights(ctx context.Context) (indexer.SyncHeights, error)
+}
+
 // Server handles HTTP requests for the API and optional UI surfaces.
 type Server struct {
 	indexerStore     BalanceStore
+	syncSource       SyncSource
 	authStore        *store.Store
 	conversionStore  ConversionStore
 	conversionClient ConversionClient
-	coreClient       CoreClient
 	config           *config.Config
 	ipLimiter        *RateLimiter
 	apiLimiter       *RateLimiter
 }
 
 // NewServer creates a new Server instance.
-func NewServer(indexerStore BalanceStore, authStore *store.Store, cfg *config.Config, ipLimiter *RateLimiter, apiLimiter *RateLimiter) *Server {
+func NewServer(indexerStore BalanceStore, syncSource SyncSource, authStore *store.Store, cfg *config.Config, ipLimiter *RateLimiter, apiLimiter *RateLimiter) *Server {
 	return &Server{
 		indexerStore:     indexerStore,
+		syncSource:       syncSource,
 		authStore:        authStore,
 		conversionStore:  authStore,
 		conversionClient: NewCoinGeckoClient(nil),
-		coreClient:       NewCoreRPCClient(cfg.CoreRPCURL, cfg.CoreRPCUser, cfg.CoreRPCPassword, nil),
 		config:           cfg,
 		ipLimiter:        ipLimiter,
 		apiLimiter:       apiLimiter,

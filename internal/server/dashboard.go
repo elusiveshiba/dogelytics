@@ -513,10 +513,10 @@ body {
             </div>
           </div>
           <div class="dashboard-stat-card">
-            <div class="dashboard-stat-label">Dogecoin Core Height</div>
+            <div class="dashboard-stat-label">Blocks Height</div>
             <div class="dashboard-stat-progress">
-              <span id="stat-core-height" class="dashboard-stat-value">-</span>
-              <span id="stat-core-detail" class="dashboard-stat-detail"></span>
+              <span id="stat-blocks-height" class="dashboard-stat-value">-</span>
+              <span id="stat-blocks-detail" class="dashboard-stat-detail"></span>
             </div>
           </div>
         </div>
@@ -829,15 +829,15 @@ body {
         setText('stat-total-wallets', formatInteger(payload.total_wallets_checked));
         setText('stat-unique-wallets', formatInteger(payload.unique_wallets_checked));
 
-        const indexedProgress = formatIndexedProgress(payload.height, payload.blockchain_height);
+        const indexedProgress = formatIndexedProgress(payload.height, payload.headers_height);
         setStatProgress('stat-indexed-percent', 'stat-indexed-detail', indexedProgress.main, indexedProgress.detail);
 
-        const coreProgress = formatIndexedProgress(payload.core_height, payload.blockchain_height);
+        const blocksProgress = formatIndexedProgress(payload.blocks_height, payload.headers_height);
         setStatProgress(
-          'stat-core-height',
-          'stat-core-detail',
-          coreProgress.main,
-          coreProgress.detail
+          'stat-blocks-height',
+          'stat-blocks-detail',
+          blocksProgress.main,
+          blocksProgress.detail
         );
 
         if (payload.available) {
@@ -1008,18 +1008,23 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	height, err := s.indexerStore.CurrentHeight(r.Context())
-	if err != nil {
-		s.sendError(w, http.StatusInternalServerError, "database-error", "Failed to load indexer height")
-		return
-	}
-
 	response := DashboardStatsResponse{
-		Height:    height,
 		Available: false,
 		Message:   "Usage statistics are currently unavailable.",
 	}
-	s.populateBlockchainProgress(r, &response)
+	if progress, ok := s.loadChainProgress(r.Context()); ok {
+		response.Height = progress.IndexedHeight
+		response.BlocksHeight = progress.BlocksHeight
+		response.HeadersHeight = progress.HeadersHeight
+		response.IndexedPercent = progress.IndexedPercent
+	} else {
+		height, err := s.indexerStore.CurrentHeight(r.Context())
+		if err != nil {
+			s.sendError(w, http.StatusInternalServerError, "database-error", "Failed to load indexer height")
+			return
+		}
+		response.Height = height
+	}
 
 	if !s.hasAuthStore() {
 		s.sendJSON(w, http.StatusOK, response)
@@ -1040,17 +1045,6 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 	response.UniqueWalletsChecked = stats.UniqueWalletsChecked
 	response.UniqueWalletsLast24h = stats.UniqueWalletsLast24h
 	s.sendJSON(w, http.StatusOK, response)
-}
-
-func (s *Server) populateBlockchainProgress(r *http.Request, response *DashboardStatsResponse) {
-	progress, ok := s.loadChainProgress(r.Context(), response.Height)
-	if !ok {
-		return
-	}
-
-	response.CoreHeight = progress.CoreHeight
-	response.BlockchainHeight = progress.BlockchainHeight
-	response.IndexedPercent = progress.IndexedPercent
 }
 
 func uiURLForPort(r *http.Request, port int) string {

@@ -9,12 +9,10 @@ import (
 
 type Config struct {
 	IndexerDbURL         string
+	IndexerAPIURL        string
 	DogelyticsDbURL      string
 	BindAddr             string
 	CorsOrigin           string
-	CoreRPCURL           string
-	CoreRPCUser          string
-	CoreRPCPassword      string
 	Confirmations        int64
 	RateLimit            int
 	APIKeyRateLimit      int
@@ -117,12 +115,10 @@ func ParseConfig() *Config {
 
 	// Parse environment variables first (as defaults for flags)
 	envIndexerDbURL := getEnv("INDEXER_DBURL", "postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable")
+	envIndexerAPIURL := getEnv("INDEXER_API_URL", "http://localhost:8000")
 	envDogelyticsDbURL := getEnv("DOGELYTICS_DBURL", "postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable")
 	envBindAddr := getEnv("BIND", "localhost:4420")
 	envCorsOrigin := getEnv("CORS", "*")
-	envCoreRPCURL := getEnv("CORE_RPC_URL", "")
-	envCoreRPCUser := getEnv("CORE_RPC_USER", "")
-	envCoreRPCPassword := getEnv("CORE_RPC_PASSWORD", "")
 	envConfirmations := getEnvInt64("CONFIRMATIONS", 6)
 	envRateLimit := getEnvInt("RATELIMIT", 10)
 	envAPIKeyRateLimit := getEnvInt("API_KEY_RATELIMIT", 120)
@@ -138,12 +134,10 @@ func ParseConfig() *Config {
 
 	// Define flags with env vars as defaults
 	flag.StringVar(&config.IndexerDbURL, "indexer-dburl", envIndexerDbURL, "PostgreSQL database URL for indexer data (env: INDEXER_DBURL)")
+	flag.StringVar(&config.IndexerAPIURL, "indexer-api-url", envIndexerAPIURL, "Indexer API base URL for sync heights (env: INDEXER_API_URL)")
 	flag.StringVar(&config.DogelyticsDbURL, "dogelytics-dburl", envDogelyticsDbURL, "PostgreSQL database URL for dogelytics data (users, keys, logs) (env: DOGELYTICS_DBURL)")
 	flag.StringVar(&config.BindAddr, "bind", envBindAddr, "HTTP server bind address (env: BIND)")
 	flag.StringVar(&config.CorsOrigin, "cors", envCorsOrigin, "CORS allowed origin (env: CORS)")
-	flag.StringVar(&config.CoreRPCURL, "core-rpc-url", envCoreRPCURL, "Dogecoin Core RPC URL for blockchain height checks (env: CORE_RPC_URL)")
-	flag.StringVar(&config.CoreRPCUser, "core-rpc-user", envCoreRPCUser, "Dogecoin Core RPC username (env: CORE_RPC_USER)")
-	flag.StringVar(&config.CoreRPCPassword, "core-rpc-password", envCoreRPCPassword, "Dogecoin Core RPC password (env: CORE_RPC_PASSWORD)")
 	flag.Int64Var(&config.Confirmations, "confirmations", envConfirmations, "Number of confirmations for available balance (env: CONFIRMATIONS)")
 	flag.IntVar(&config.RateLimit, "ratelimit", envRateLimit, "Maximum requests per IP per minute (0 = disabled) (env: RATELIMIT)")
 	flag.IntVar(&config.APIKeyRateLimit, "apikey-ratelimit", envAPIKeyRateLimit, "Maximum requests per API key per minute (0 = disabled) (env: API_KEY_RATELIMIT)")

@@ -332,10 +332,10 @@ body {
 }
 .tips-copy-button {
   box-sizing: border-box;
-  flex: 0 0 20px;
-  width: 20px;
-  min-width: 20px;
-  height: 20px;
+  flex: 0 0 22px;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
   margin: 0;
   padding: 0;
   display: flex;
@@ -343,9 +343,9 @@ body {
   justify-content: center;
 }
 .tips-copy-button:active {
-  width: 20px;
-  min-width: 20px;
-  height: 20px;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
   margin: 0;
   padding: 0;
 }
@@ -355,7 +355,6 @@ body {
   position: absolute;
   width: 8px;
   height: 8px;
-  background: #fff;
   border: 1px solid #000;
 }
 .tips-copy-icon::before {

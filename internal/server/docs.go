@@ -52,9 +52,9 @@ body {
   margin-left: 18px;
 }
 .docs-code {
-  background: #fff;
-  border-top: 1px solid #446a65;
-  border-left: 1px solid #446a65;
+  background: #dfdfdf;
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   font-family: "Courier New", monospace;
@@ -63,6 +63,11 @@ body {
   overflow-x: auto;
   padding: 8px;
   white-space: pre;
+}
+.docs-code code {
+  background: transparent;
+  border: 0;
+  padding: 0;
 }
 .docs-table {
   border-collapse: collapse;

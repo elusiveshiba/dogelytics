@@ -255,6 +255,8 @@ func TestDashboardDocsRoute(t *testing.T) {
 		"linear-gradient(to right, #446a65, #80b1b3)",
 		"background: #9dd2c3;",
 		"background: #4a003f;",
+		"background: #dfdfdf;",
+		"border-top: 1px solid #808080;",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected Dogelytics theme docs to contain %q in %q", want, body)

@@ -203,9 +203,13 @@ const htmlStyles = `
   code {
     font-family: "Courier New", monospace;
     font-size: 10px;
+    background: #fff;
+    padding: 2px 4px;
+  }
+
+  p code {
     background: #dfdfdf;
     border: 1px solid #808080;
-    padding: 2px 4px;
   }
   
   .token-display {

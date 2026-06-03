@@ -52,9 +52,9 @@ body {
   margin-left: 18px;
 }
 .docs-code {
-  background: #dfdfdf;
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
+  background: #fff;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   font-family: "Courier New", monospace;

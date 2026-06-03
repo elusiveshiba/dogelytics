@@ -62,20 +62,17 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if strings.Count(body, `class="container dashboard-window"`) != 3 {
 		t.Fatalf("expected three dashboard windows in %q", body)
 	}
-	if strings.Count(body, `class="title-coin" src="/img/dogecoin-doge-logo.svg"`) != 3 {
+	if strings.Count(body, `class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg"`) != 3 {
 		t.Fatalf("expected dashboard coin icon on each window in %q", body)
 	}
 	for _, want := range []string{
-		`class="title-coin" src="/img/dogecoin-doge-logo.svg"`,
-		"linear-gradient(to right, #c8a951, #e6c85a)",
-		"background: #2b2b2b;",
+		`class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg"`,
+		"linear-gradient(to right, #446a65, #80b1b3)",
+		"background: #4a003f;",
 	} {
 		if !strings.Contains(body, want) {
-			t.Fatalf("expected Dogecoin theme dashboard to contain %q in %q", want, body)
+			t.Fatalf("expected Dogelytics theme dashboard to contain %q in %q", want, body)
 		}
-	}
-	if strings.Contains(body, "doge-ghost.png") || strings.Contains(body, "bg-ghost") {
-		t.Fatalf("did not expect ghost image on dashboard in %q", body)
 	}
 	if strings.Contains(body, ".dashboard-card") || strings.Contains(body, "tr:hover") || strings.Contains(body, "#000080") {
 		t.Fatalf("did not expect old dashboard card, hover, or navy theme styles in %q", body)
@@ -250,21 +247,18 @@ func TestDashboardDocsRoute(t *testing.T) {
 	if strings.Count(body, `class="container docs-window"`) != 8 {
 		t.Fatalf("expected eight docs windows in %q", body)
 	}
-	if strings.Count(body, `class="title-coin" src="/img/dogecoin-doge-logo.svg"`) != 8 {
+	if strings.Count(body, `class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg"`) != 8 {
 		t.Fatalf("expected docs coin icon on each window in %q", body)
 	}
 	for _, want := range []string{
-		`class="title-coin" src="/img/dogecoin-doge-logo.svg"`,
-		"linear-gradient(to right, #c8a951, #e6c85a)",
-		"background: #e8d89c;",
-		"background: #2b2b2b;",
+		`class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg"`,
+		"linear-gradient(to right, #446a65, #80b1b3)",
+		"background: #9dd2c3;",
+		"background: #4a003f;",
 	} {
 		if !strings.Contains(body, want) {
-			t.Fatalf("expected Dogecoin theme docs to contain %q in %q", want, body)
+			t.Fatalf("expected Dogelytics theme docs to contain %q in %q", want, body)
 		}
-	}
-	if strings.Contains(body, "doge-ghost.png") || strings.Contains(body, "bg-ghost") {
-		t.Fatalf("did not expect ghost image on docs page in %q", body)
 	}
 	if strings.Contains(body, "tr:hover") || strings.Contains(body, "#000080") {
 		t.Fatalf("did not expect old docs hover or navy theme styles in %q", body)
@@ -312,7 +306,7 @@ func TestDashboardHandlerServesFavicons(t *testing.T) {
 		"/apple-touch-icon.png",
 		"/site.webmanifest",
 		"/favicons/favicon-32x32.png",
-		"/img/dogecoin-doge-logo.svg",
+		"/img/dogecoin-doge-logo-grayscale.svg",
 	}
 
 	for _, path := range tests {

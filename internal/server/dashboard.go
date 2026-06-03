@@ -104,12 +104,12 @@ body {
 .wallet-checker-currency {
   min-width: 120px;
   padding: 4px 24px 4px 6px;
-  border-top: 1px solid #a08030;
-  border-left: 1px solid #a08030;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   border-radius: 0;
-  box-shadow: inset -1px -1px 0 #f0e6c8, inset 1px 1px 0 #000;
+  box-shadow: inset -1px -1px 0 #80b1b3, inset 1px 1px 0 #000;
   background: #fff;
   color: #000;
   font-size: 11px;
@@ -127,12 +127,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0e6c8;
+  background: #80b1b3;
   border-top: 1px solid #fff;
   border-left: 1px solid #fff;
-  border-right: 1px solid #a08030;
-  border-bottom: 1px solid #a08030;
-  box-shadow: inset 1px 1px 0 #f8f0d8;
+  border-right: 1px solid #446a65;
+  border-bottom: 1px solid #446a65;
+  box-shadow: inset 1px 1px 0 #ecf9f2;
   color: #000;
   font-size: 9px;
   pointer-events: none;
@@ -142,8 +142,8 @@ body {
 }
 .dashboard-stat-card {
   background: #fff;
-  border-top: 1px solid #a08030;
-  border-left: 1px solid #a08030;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   padding: 8px;
@@ -177,8 +177,8 @@ body {
 }
 .dashboard-balance-item {
   background: #fff;
-  border-top: 1px solid #a08030;
-  border-left: 1px solid #a08030;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   padding: 8px;
@@ -201,7 +201,7 @@ body {
 .dashboard-status {
   min-height: 18px;
   margin-top: 8px;
-  color: #8b6914;
+  color: #19392c;
 }
 .dashboard-status.error {
   color: #8b0000;
@@ -211,20 +211,20 @@ body {
 }
 .docs-button {
   display: inline-block;
-  background: #f0e6c8;
+  background: #80b1b3;
   border-top: 2px solid #fff;
   border-left: 2px solid #fff;
-  border-right: 2px solid #3a3020;
-  border-bottom: 2px solid #3a3020;
-  box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
+  border-right: 2px solid #19392c;
+  border-bottom: 2px solid #19392c;
+  box-shadow: inset 1px 1px 0 #ecf9f2, inset -1px -1px 0 #517b7a;
   color: #000;
   font-weight: bold;
   padding: 5px 8px;
   text-decoration: none;
 }
 .docs-button:active {
-  border-top-color: #3a3020;
-  border-left-color: #3a3020;
+  border-top-color: #19392c;
+  border-left-color: #19392c;
   border-right-color: #fff;
   border-bottom-color: #fff;
 }
@@ -234,19 +234,19 @@ body {
   bottom: 16px;
   z-index: 20;
   width: 175px;
-  background: #f0e6c8;
+  background: #80b1b3;
   border-top: 2px solid #fff;
   border-left: 2px solid #fff;
-  border-right: 2px solid #3a3020;
-  border-bottom: 2px solid #3a3020;
-  box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
+  border-right: 2px solid #19392c;
+  border-bottom: 2px solid #19392c;
+  box-shadow: inset 1px 1px 0 #ecf9f2, inset -1px -1px 0 #517b7a;
   padding: 2px;
 }
 .tips-widget.minimised {
   width: auto;
 }
 .tips-title {
-  background: linear-gradient(to right, #c8a951, #e6c85a);
+  background: linear-gradient(to right, #446a65, #80b1b3);
   color: #000;
   padding: 2px 4px;
   font-weight: bold;
@@ -287,8 +287,8 @@ body {
   display: flex;
   justify-content: center;
   background: #fff;
-  border-top: 1px solid #a08030;
-  border-left: 1px solid #a08030;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   margin-bottom: 5px;
@@ -305,8 +305,8 @@ body {
   align-items: center;
   gap: 6px;
   background: #fff;
-  border-top: 1px solid #a08030;
-  border-left: 1px solid #a08030;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   padding: 4px 6px 4px 4px;
@@ -392,7 +392,7 @@ body {
   <div class="container dashboard-window">
     <div class="window-title">
       <span>Dogelytics</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <h1>Dogelytics Dashboard</h1>
@@ -411,7 +411,7 @@ body {
   <div class="container dashboard-window">
     <div class="window-title">
       <span>Wallet Checker</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <form id="wallet-checker-form" class="wallet-checker-form">
@@ -483,7 +483,7 @@ body {
   <div class="container dashboard-window">
     <div class="window-title">
       <span>Stats</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <div class="dashboard-section">

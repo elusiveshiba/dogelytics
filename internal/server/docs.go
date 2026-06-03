@@ -53,8 +53,8 @@ body {
 }
 .docs-code {
   background: #fff;
-  border-top: 1px solid #a08030;
-  border-left: 1px solid #a08030;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   font-family: "Courier New", monospace;
@@ -70,13 +70,13 @@ body {
 }
 .docs-table th,
 .docs-table td {
-  border: 1px solid #a08030;
+  border: 1px solid #446a65;
   padding: 5px;
   text-align: left;
   vertical-align: top;
 }
 .docs-table th {
-  background: #e8d89c;
+  background: #9dd2c3;
   color: #000;
 }
 .docs-nav {
@@ -84,20 +84,20 @@ body {
 }
 .dashboard-button {
   display: inline-block;
-  background: #f0e6c8;
+  background: #80b1b3;
   border-top: 2px solid #fff;
   border-left: 2px solid #fff;
-  border-right: 2px solid #3a3020;
-  border-bottom: 2px solid #3a3020;
-  box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
+  border-right: 2px solid #19392c;
+  border-bottom: 2px solid #19392c;
+  box-shadow: inset 1px 1px 0 #ecf9f2, inset -1px -1px 0 #517b7a;
   color: #000;
   font-weight: bold;
   padding: 5px 8px;
   text-decoration: none;
 }
 .dashboard-button:active {
-  border-top-color: #3a3020;
-  border-left-color: #3a3020;
+  border-top-color: #19392c;
+  border-left-color: #19392c;
   border-right-color: #fff;
   border-bottom-color: #fff;
 }
@@ -110,19 +110,19 @@ body {
   bottom: 16px;
   z-index: 20;
   width: 175px;
-  background: #f0e6c8;
+  background: #80b1b3;
   border-top: 2px solid #fff;
   border-left: 2px solid #fff;
-  border-right: 2px solid #3a3020;
-  border-bottom: 2px solid #3a3020;
-  box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
+  border-right: 2px solid #19392c;
+  border-bottom: 2px solid #19392c;
+  box-shadow: inset 1px 1px 0 #ecf9f2, inset -1px -1px 0 #517b7a;
   padding: 2px;
 }
 .tips-widget.minimised {
   width: auto;
 }
 .tips-title {
-  background: linear-gradient(to right, #c8a951, #e6c85a);
+  background: linear-gradient(to right, #446a65, #80b1b3);
   color: #000;
   padding: 2px 4px;
   font-weight: bold;
@@ -163,8 +163,8 @@ body {
   display: flex;
   justify-content: center;
   background: #fff;
-  border-top: 1px solid #a08030;
-  border-left: 1px solid #a08030;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   margin-bottom: 5px;
@@ -181,8 +181,8 @@ body {
   align-items: center;
   gap: 6px;
   background: #fff;
-  border-top: 1px solid #a08030;
-  border-left: 1px solid #a08030;
+  border-top: 1px solid #446a65;
+  border-left: 1px solid #446a65;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   padding: 4px 6px 4px 4px;
@@ -250,7 +250,7 @@ body {
 .dashboard-status {
   min-height: 18px;
   margin-top: 8px;
-  color: #8b6914;
+  color: #19392c;
 }
 .dashboard-status.error {
   color: #8b0000;
@@ -276,7 +276,7 @@ body {
   <div class="container docs-window">
     <div class="window-title">
       <span>Dogelytics API Docs</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <h1>Dogelytics API Docs</h1>
@@ -290,7 +290,7 @@ body {
   <div class="container docs-window">
     <div class="window-title">
       <span>Base URL</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <p>Use the public API host for external requests:</p>
@@ -301,7 +301,7 @@ body {
   <div class="container docs-window">
     <div class="window-title">
       <span>API Keys</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <p>API keys are optional. Requests without a key are still allowed, but a valid key gets the higher API-key rate limit.</p>
@@ -315,7 +315,7 @@ body {
   <div class="container docs-window">
     <div class="window-title">
       <span>GET /balance</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <p>Returns the balance for a Dogecoin address. Values are decimal DOGE strings.</p>
@@ -336,7 +336,7 @@ body {
   <div class="container docs-window">
     <div class="window-title">
       <span>GET /conversion</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <p>Returns the current DOGE conversion rate for one target currency code.</p>
@@ -360,7 +360,7 @@ body {
   <div class="container docs-window">
     <div class="window-title">
       <span>GET /health</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <p>Returns service status and the raw sync heights Dogelytics reads from the indexer API.</p>
@@ -380,7 +380,7 @@ body {
   <div class="container docs-window">
     <div class="window-title">
       <span>Dashboard Helper APIs</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <p>The dashboard host exposes same-origin helper routes for browser use. <code>/api/balance</code> and <code>/api/conversion</code> mirror the public API responses, while <code>/api/dashboard-stats</code> returns public usage counters and sync metrics for the dashboard.</p>
@@ -393,7 +393,7 @@ GET /api/dashboard-stats</code></pre>
   <div class="container docs-window">
     <div class="window-title">
       <span>Errors and Limits</span>
-      <span><img class="title-coin" src="/img/dogecoin-doge-logo.svg" alt="" aria-hidden="true"></span>
+      <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
       <table class="docs-table">

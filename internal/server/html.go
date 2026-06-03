@@ -11,7 +11,7 @@ const htmlStyles = `
   
   body {
     font-family: "MS Sans Serif", Tahoma, Arial, sans-serif;
-    background: #2b2b2b;
+    background: #4a003f;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -22,19 +22,19 @@ const htmlStyles = `
   }
   
   .container {
-    background: #f0e6c8;
+    background: #80b1b3;
     border-top: 2px solid #fff;
     border-left: 2px solid #fff;
-    border-right: 2px solid #3a3020;
-    border-bottom: 2px solid #3a3020;
-    box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
+    border-right: 2px solid #19392c;
+    border-bottom: 2px solid #19392c;
+    box-shadow: inset 1px 1px 0 #ecf9f2, inset -1px -1px 0 #517b7a;
     padding: 2px;
     max-width: 900px;
     width: 100%;
   }
   
   .window-title {
-    background: linear-gradient(to right, #c8a951, #e6c85a);
+    background: linear-gradient(to right, #446a65, #80b1b3);
     color: #000;
     padding: 3px 5px;
     font-weight: bold;
@@ -46,7 +46,7 @@ const htmlStyles = `
   }
   
   .window-content {
-    background: #f0e6c8;
+    background: #80b1b3;
     padding: 12px;
   }
   
@@ -64,7 +64,7 @@ const htmlStyles = `
     font-weight: bold;
     margin-bottom: 8px;
     padding: 3px 5px;
-    background: #c8a951;
+    background: #5c9082;
   }
   
   h3 {
@@ -83,16 +83,16 @@ const htmlStyles = `
   }
   
   a {
-    color: #8b6914;
+    color: #19392c;
     text-decoration: underline;
   }
   
   a:hover {
-    color: #c8a951;
+    color: #446a65;
   }
   
   a:visited {
-    color: #6f5410;
+    color: #11300d;
   }
   
   form {
@@ -112,11 +112,11 @@ const htmlStyles = `
   input[type="text"] {
     width: 100%;
     padding: 3px 4px;
-    border-top: 1px solid #a08030;
-    border-left: 1px solid #a08030;
+    border-top: 1px solid #446a65;
+    border-left: 1px solid #446a65;
     border-right: 1px solid #fff;
     border-bottom: 1px solid #fff;
-    box-shadow: inset -1px -1px 0 #f0e6c8, inset 1px 1px 0 #000;
+    box-shadow: inset -1px -1px 0 #80b1b3, inset 1px 1px 0 #000;
     font-size: 11px;
     font-family: inherit;
     background: #fff;
@@ -129,13 +129,13 @@ const htmlStyles = `
   }
   
   button {
-    background: #f0e6c8;
+    background: #80b1b3;
     color: #000;
     border-top: 2px solid #fff;
     border-left: 2px solid #fff;
-    border-right: 2px solid #3a3020;
-    border-bottom: 2px solid #3a3020;
-    box-shadow: inset 1px 1px 0 #f8f0d8, inset -1px -1px 0 #a08830;
+    border-right: 2px solid #19392c;
+    border-bottom: 2px solid #19392c;
+    box-shadow: inset 1px 1px 0 #ecf9f2, inset -1px -1px 0 #517b7a;
     padding: 4px 12px;
     font-size: 11px;
     font-weight: normal;
@@ -146,20 +146,20 @@ const htmlStyles = `
   }
   
   button:hover {
-    background: #f0e6c8;
+    background: #80b1b3;
   }
   
   button:active {
-    border-top: 2px solid #3a3020;
-    border-left: 2px solid #3a3020;
+    border-top: 2px solid #19392c;
+    border-left: 2px solid #19392c;
     border-right: 2px solid #fff;
     border-bottom: 2px solid #fff;
-    box-shadow: inset -1px -1px 0 #f8f0d8, inset 1px 1px 0 #a08830;
+    box-shadow: inset -1px -1px 0 #ecf9f2, inset 1px 1px 0 #517b7a;
     padding: 5px 11px 3px 13px;
   }
   
   button.secondary {
-    background: #f0e6c8;
+    background: #80b1b3;
     padding: 3px 8px;
     font-size: 11px;
     margin-left: 6px;
@@ -167,7 +167,7 @@ const htmlStyles = `
   }
   
   button.danger {
-    background: #f0e6c8;
+    background: #80b1b3;
   }
   
   table {
@@ -175,15 +175,15 @@ const htmlStyles = `
     border-collapse: collapse;
     margin-top: 8px;
     background: #fff;
-    border-top: 1px solid #a08030;
-    border-left: 1px solid #a08030;
+    border-top: 1px solid #446a65;
+    border-left: 1px solid #446a65;
     border-right: 1px solid #fff;
     border-bottom: 1px solid #fff;
     font-size: 11px;
   }
   
   th {
-    background: #c8a951;
+    background: #5c9082;
     color: #000;
     padding: 4px;
     text-align: left;
@@ -193,7 +193,7 @@ const htmlStyles = `
   
   td {
     padding: 4px;
-    border-bottom: 1px solid #f0e6c8;
+    border-bottom: 1px solid #80b1b3;
   }
   
   tr:last-child td {
@@ -209,8 +209,8 @@ const htmlStyles = `
   
   .token-display {
     background: #fff;
-    border-top: 2px solid #a08030;
-    border-left: 2px solid #a08030;
+    border-top: 2px solid #446a65;
+    border-left: 2px solid #446a65;
     border-right: 2px solid #fff;
     border-bottom: 2px solid #fff;
     padding: 8px;
@@ -248,34 +248,34 @@ const htmlStyles = `
 
   .copy-status {
     margin-top: 4px;
-    color: #8b6914;
+    color: #19392c;
     font-size: 10px;
   }
   
   .alert {
-    background: #ffffe1;
+    background: #d2f1e1;
     border-top: 2px solid #fff;
     border-left: 2px solid #fff;
-    border-right: 2px solid #a08030;
-    border-bottom: 2px solid #a08030;
+    border-right: 2px solid #446a65;
+    border-bottom: 2px solid #446a65;
     padding: 8px;
     margin: 8px 0;
     font-size: 11px;
   }
   
   .success {
-    background: #e6f0c8;
+    background: #d2f1e1;
   }
   
   .user-badge {
     display: inline-block;
-    background: #f0e6c8;
+    background: #80b1b3;
     color: #000;
     padding: 2px 8px;
     border-top: 1px solid #fff;
     border-left: 1px solid #fff;
-    border-right: 1px solid #a08030;
-    border-bottom: 1px solid #a08030;
+    border-right: 1px solid #446a65;
+    border-bottom: 1px solid #446a65;
     font-size: 11px;
     font-weight: bold;
   }
@@ -284,7 +284,7 @@ const htmlStyles = `
     text-align: center;
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 2px groove #a08030;
+    border-top: 2px groove #446a65;
   }
   
   .links a {
@@ -354,7 +354,7 @@ const htmlFooter = `
 const memeNumberAssets = `
 <style>
   .meme-highlight {
-    background: #ffff00;
+    background: #a9dec2;
     color: #000;
     cursor: pointer;
     border-radius: 2px;
@@ -504,7 +504,7 @@ const memeNumberAssets = `
       };
       var colours = memeType === "420"
         ? ["#1b7a1b", "#2ecc40", "#7cfc00", "#3a5f0b", "#9acd32", "#006400"]
-        : ["#ff0000", "#ffd400", "#1e90ff", "#ff69b4", "#00cc00"];
+        : ["#ff0000", "#9dd2c3", "#1e90ff", "#ff69b4", "#00cc00"];
       var particleCount = memeType === "420" ? 60 : 45;
       var options = {
         colors: colours,

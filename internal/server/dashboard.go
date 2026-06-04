@@ -713,7 +713,8 @@ body {
         return { main: '-', detail: '' };
       }
 
-      const percent = Math.min((indexed / total) * 100, 100);
+      const complete = indexed >= total;
+      const percent = Math.max(0, Math.min((indexed / total) * 100, complete ? 100 : 99.99));
       return {
         main: formatPercent(percent),
         detail: formatInteger(indexedHeight) + '/' + formatInteger(blockchainHeight),

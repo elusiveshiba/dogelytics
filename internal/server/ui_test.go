@@ -171,6 +171,9 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "formatIndexedProgress(payload.core_blocks_height, payload.core_headers_height)") {
 		t.Fatalf("expected blocks progress formatting in %q", body)
 	}
+	if !strings.Contains(body, "complete ? 100 : 99.99") {
+		t.Fatalf("expected incomplete sync progress to stay below 100%% in %q", body)
+	}
 	if !strings.Contains(body, "loadDashboardStats({ autoRefresh: true });") || !strings.Contains(body, "60000") {
 		t.Fatalf("expected dashboard stats auto refresh in %q", body)
 	}

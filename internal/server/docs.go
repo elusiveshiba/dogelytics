@@ -388,7 +388,7 @@ body {
       <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
-      <p>The dashboard host exposes same-origin helper routes for browser use. <code>/api/balance</code> and <code>/api/conversion</code> mirror the public API responses, while <code>/api/dashboard-stats</code> returns public usage counters and sync metrics for the dashboard.</p>
+      <p>The dashboard host exposes same-origin helper routes for browser use. <code>/api/balance</code> and <code>/api/conversion</code> mirror the public API responses, while <code>/api/dashboard-stats</code> returns public usage counters for the dashboard.</p>
       <pre class="docs-code"><code>GET /api/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8
 GET /api/conversion?currency=usd
 GET /api/dashboard-stats</code></pre>

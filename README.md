@@ -1,6 +1,10 @@
 # Dogelytics
 
-A lightweight REST API service that provides Dogecoin wallet balance information by querying the [Dogecoin Indexer](https://github.com/dogeorg/indexer) PostgreSQL database.
+<p align="center">
+  <img src="img/dogelytics%20icon.png" alt="Dogelytics logo" width="140">
+</p>
+
+A lightweight REST API service that provides Dogecoin wallet balance information by querying the [Dogecoin Indexer](https://github.com/dogeorg/indexer) HTTP API.
 
 ## Features
 
@@ -18,9 +22,12 @@ A lightweight REST API service that provides Dogecoin wallet balance information
 ## Prerequisites
 
 - Go 1.21 or later
-- PostgreSQL (two databases are required):
-  - **Indexer database** — shared with [Dogecoin Indexer](https://github.com/dogeorg/indexer) for blockchain data (read-only)
-  - **Dogelytics database** — stores users, API keys, and sessions
+- [Dogecoin Indexer](https://github.com/dogeorg/indexer) with its HTTP API reachable
+- PostgreSQL for the optional Dogelytics database, which stores users, API keys, and sessions
+
+## Dogebox Pup
+
+This repository includes a Dogebox pup definition in `manifest.json` and `pup.nix`. The pup depends on the Indexer pup's `indexer-api` interface, derives `INDEXER_API_URL` from that connection, and exposes optional admin and dashboard UIs.
 
 ## Getting Started
 
@@ -64,7 +71,7 @@ sudo apt install postgresql postgresql-contrib && sudo systemctl start postgresq
 
 ### 3. Create the Dogelytics Database
 
-The indexer database is managed by the [Dogecoin Indexer](https://github.com/dogeorg/indexer). The dogelytics database needs to be created separately.
+The Indexer manages blockchain data behind its HTTP API. The Dogelytics database only needs to be created if you want auth-backed features such as users, API keys, request logs, or conversion-rate caching.
 
 **Automated setup (recommended):**
 
@@ -104,13 +111,7 @@ Copy the example environment file and edit it:
 cp .env.example .env
 ```
 
-At minimum, set the indexer database URL:
-
-```bash
-INDEXER_DBURL=postgres://indexer:yourpassword@localhost:5432/indexer?sslmode=disable
-```
-
-If the indexer API is not running on `http://localhost:8000`, also set:
+At minimum, set the Indexer API URL if it is not running on `http://localhost:8000`:
 
 ```bash
 INDEXER_API_URL=http://localhost:8000
@@ -152,7 +153,7 @@ make build
 ./dogelytics
 ```
 
-The [Dogecoin Indexer](https://github.com/dogeorg/indexer) must be running with a reachable PostgreSQL database for balance queries and a reachable HTTP API for sync heights.
+The [Dogecoin Indexer](https://github.com/dogeorg/indexer) HTTP API must be reachable for balance queries and sync heights.
 
 ## Configuration Reference
 
@@ -165,8 +166,7 @@ Configuration is loaded in this order (later sources override earlier ones):
 
 | Environment Variable | Flag | Description | Default |
 |---------------------|------|-------------|---------|
-| `INDEXER_DBURL` | `-indexer-dburl` | PostgreSQL URL for indexer database (blockchain data) | `postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable` |
-| `INDEXER_API_URL` | `-indexer-api-url` | Indexer API base URL for sync heights | `http://localhost:8000` |
+| `INDEXER_API_URL` | `-indexer-api-url` | Indexer API base URL for balances and sync heights | `http://localhost:8000` |
 | `DOGELYTICS_DBURL` | `-dogelytics-dburl` | PostgreSQL URL for dogelytics database (users, keys, sessions) | `postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable` |
 | `BIND` | `-bind` | HTTP server bind address | `localhost:4420` |
 | `CORS` | `-cors` | CORS allowed origin (`*` for all) | `*` |
@@ -193,7 +193,7 @@ When the dashboard UI is enabled, it also exposes same-origin helper routes unde
 
 - `GET /api/balance` mirrors `GET /balance` for dashboard wallet checks.
 - `GET /api/conversion` mirrors `GET /conversion` for dashboard currency conversions.
-- `GET /api/dashboard-stats` returns public dashboard usage and sync metrics.
+- `GET /api/dashboard-stats` returns public dashboard usage counters.
 
 ### GET /balance
 
@@ -322,7 +322,7 @@ These routes are served from the dashboard UI host when `ENABLE_DASHBOARD_UI=tru
 |-------|-------------|
 | `GET /api/balance?address=<address>` | Same response and errors as `GET /balance` |
 | `GET /api/conversion?currency=<currency>` | Same response and errors as `GET /conversion` |
-| `GET /api/dashboard-stats` | Public dashboard stats, including wallet lookup counters and indexer sync metrics |
+| `GET /api/dashboard-stats` | Public dashboard stats, including wallet lookup counters |
 
 Example dashboard stats response:
 

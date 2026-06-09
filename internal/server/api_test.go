@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dogeorg/doge"
 	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
@@ -21,8 +20,7 @@ type fakeBalanceStore struct {
 	heightErr   error
 	balance     indexer.Balance
 	balanceErr  error
-	lastScript  doge.ScriptType
-	lastAddress []byte
+	lastAddress string
 }
 
 type fakeSyncSource struct {
@@ -30,9 +28,8 @@ type fakeSyncSource struct {
 	err         error
 }
 
-func (f *fakeBalanceStore) GetBalance(_ context.Context, scriptType doge.ScriptType, address []byte, _ int64) (indexer.Balance, error) {
-	f.lastScript = scriptType
-	f.lastAddress = append([]byte(nil), address...)
+func (f *fakeBalanceStore) GetBalance(_ context.Context, address string, _ int64) (indexer.Balance, error) {
+	f.lastAddress = address
 	return f.balance, f.balanceErr
 }
 
@@ -223,11 +220,8 @@ func TestHandleBalanceSuccess(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if store.lastScript != doge.ScriptTypeP2PKH {
-		t.Fatalf("expected P2PKH script type, got %v", store.lastScript)
-	}
-	if len(store.lastAddress) != 20 {
-		t.Fatalf("expected 20-byte address hash, got %d bytes", len(store.lastAddress))
+	if store.lastAddress != "DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8" {
+		t.Fatalf("expected balance lookup address to be preserved, got %q", store.lastAddress)
 	}
 
 	var resp config.BalanceResponse

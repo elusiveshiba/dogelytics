@@ -64,7 +64,7 @@ help:
 	@echo "Examples:"
 	@echo "  make build"
 	@echo "  make run"
-	@echo "  INDEXER_DBURL=postgres://indexer:password@localhost:5432/indexer?sslmode=disable make run"
+	@echo "  INDEXER_API_URL=http://localhost:8000 make run"
 
 # Default target
 .DEFAULT_GOAL := help

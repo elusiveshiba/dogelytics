@@ -24,56 +24,56 @@ func unsetEnvForTest(t *testing.T, key string) {
 func TestLoadDotEnvIfPresent_LoadsKeyValues(t *testing.T) {
 	tmpDir := t.TempDir()
 	envPath := filepath.Join(tmpDir, ".env")
-	content := "INDEXER_DBURL=postgres://user:pass@localhost:5432/indexer?sslmode=disable\n"
+	content := "INDEXER_API_URL=http://indexer.local:8000\n"
 
 	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write .env: %v", err)
 	}
 
-	unsetEnvForTest(t, "INDEXER_DBURL")
+	unsetEnvForTest(t, "INDEXER_API_URL")
 	loadDotEnvIfPresent(envPath)
 
-	got := os.Getenv("INDEXER_DBURL")
-	want := "postgres://user:pass@localhost:5432/indexer?sslmode=disable"
+	got := os.Getenv("INDEXER_API_URL")
+	want := "http://indexer.local:8000"
 	if got != want {
-		t.Fatalf("INDEXER_DBURL mismatch: got %q, want %q", got, want)
+		t.Fatalf("INDEXER_API_URL mismatch: got %q, want %q", got, want)
 	}
 }
 
 func TestLoadDotEnvIfPresent_PreservesExistingEnv(t *testing.T) {
 	tmpDir := t.TempDir()
 	envPath := filepath.Join(tmpDir, ".env")
-	content := "INDEXER_DBURL=postgres://fromfile@localhost:5432/indexer?sslmode=disable\n"
+	content := "INDEXER_API_URL=http://from-file:8000\n"
 
 	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write .env: %v", err)
 	}
 
-	t.Setenv("INDEXER_DBURL", "postgres://fromenv@localhost:5432/indexer?sslmode=disable")
+	t.Setenv("INDEXER_API_URL", "http://from-env:8000")
 	loadDotEnvIfPresent(envPath)
 
-	got := os.Getenv("INDEXER_DBURL")
-	want := "postgres://fromenv@localhost:5432/indexer?sslmode=disable"
+	got := os.Getenv("INDEXER_API_URL")
+	want := "http://from-env:8000"
 	if got != want {
-		t.Fatalf("INDEXER_DBURL should preserve existing env: got %q, want %q", got, want)
+		t.Fatalf("INDEXER_API_URL should preserve existing env: got %q, want %q", got, want)
 	}
 }
 
 func TestLoadDotEnvIfPresent_HandlesExportAndQuotes(t *testing.T) {
 	tmpDir := t.TempDir()
 	envPath := filepath.Join(tmpDir, ".env")
-	content := "export INDEXER_DBURL='postgres://quoted@localhost:5432/indexer?sslmode=disable'\n"
+	content := "export INDEXER_API_URL='http://quoted:8000'\n"
 
 	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write .env: %v", err)
 	}
 
-	unsetEnvForTest(t, "INDEXER_DBURL")
+	unsetEnvForTest(t, "INDEXER_API_URL")
 	loadDotEnvIfPresent(envPath)
 
-	got := os.Getenv("INDEXER_DBURL")
-	want := "postgres://quoted@localhost:5432/indexer?sslmode=disable"
+	got := os.Getenv("INDEXER_API_URL")
+	want := "http://quoted:8000"
 	if got != want {
-		t.Fatalf("INDEXER_DBURL mismatch with export/quotes: got %q, want %q", got, want)
+		t.Fatalf("INDEXER_API_URL mismatch with export/quotes: got %q, want %q", got, want)
 	}
 }

@@ -8,7 +8,6 @@ import (
 )
 
 type Config struct {
-	IndexerDbURL         string
 	IndexerAPIURL        string
 	DogelyticsDbURL      string
 	BindAddr             string
@@ -114,7 +113,6 @@ func ParseConfig() *Config {
 	loadDotEnvIfPresent(".env")
 
 	// Parse environment variables first (as defaults for flags)
-	envIndexerDbURL := getEnv("INDEXER_DBURL", "postgres://indexer:changeme@localhost:5432/indexer?sslmode=disable")
 	envIndexerAPIURL := getEnv("INDEXER_API_URL", "http://localhost:8000")
 	envDogelyticsDbURL := getEnv("DOGELYTICS_DBURL", "postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable")
 	envBindAddr := getEnv("BIND", "localhost:4420")
@@ -133,7 +131,6 @@ func ParseConfig() *Config {
 	envEnableSignups := getEnvBool("ENABLE_SIGNUPS", false)
 
 	// Define flags with env vars as defaults
-	flag.StringVar(&config.IndexerDbURL, "indexer-dburl", envIndexerDbURL, "PostgreSQL database URL for indexer data (env: INDEXER_DBURL)")
 	flag.StringVar(&config.IndexerAPIURL, "indexer-api-url", envIndexerAPIURL, "Indexer API base URL for sync heights (env: INDEXER_API_URL)")
 	flag.StringVar(&config.DogelyticsDbURL, "dogelytics-dburl", envDogelyticsDbURL, "PostgreSQL database URL for dogelytics data (users, keys, logs) (env: DOGELYTICS_DBURL)")
 	flag.StringVar(&config.BindAddr, "bind", envBindAddr, "HTTP server bind address (env: BIND)")

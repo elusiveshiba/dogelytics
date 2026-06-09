@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 
-	"github.com/dogeorg/doge"
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
 	"github.com/dogeorg/dogelytics/internal/store"
@@ -11,7 +10,7 @@ import (
 
 // BalanceStore defines the indexer operations needed by the HTTP API.
 type BalanceStore interface {
-	GetBalance(ctx context.Context, scriptType doge.ScriptType, address []byte, confirmations int64) (indexer.Balance, error)
+	GetBalance(ctx context.Context, address string, confirmations int64) (indexer.Balance, error)
 	CurrentHeight(ctx context.Context) (int64, error)
 }
 

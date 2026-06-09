@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -20,6 +23,8 @@ import (
 	"github.com/dogeorg/dogelytics/internal/store"
 )
 
+var dogeboxMetricsClient = &http.Client{Timeout: 10 * time.Second}
+
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
@@ -32,15 +37,10 @@ func run() error {
 
 	cfg := config.ParseConfig()
 
-	indexerStore, err := indexer.NewStore(ctx, cfg.IndexerDbURL)
-	if err != nil {
-		return err
+	indexerClient := indexer.NewSyncClient(cfg.IndexerAPIURL, nil)
+	if indexerClient == nil {
+		return errors.New("INDEXER_API_URL is required")
 	}
-	defer func() {
-		if closeErr := indexerStore.Close(); closeErr != nil {
-			log.Printf("close indexer database: %v", closeErr)
-		}
-	}()
 
 	authStore, err := openAuthStore(ctx, cfg)
 	if err != nil {
@@ -58,9 +58,13 @@ func run() error {
 		return err
 	}
 
+	if authStore != nil {
+		startMetricsReporter(ctx, authStore)
+	}
+
 	srv := server.NewServer(
-		indexerStore,
-		indexer.NewSyncClient(cfg.IndexerAPIURL, nil),
+		indexerClient,
+		indexerClient,
 		authStore,
 		cfg,
 		server.NewRateLimiter(cfg.RateLimit),
@@ -98,6 +102,71 @@ func run() error {
 	}
 
 	return runHTTPServers(ctx, servers)
+}
+
+func startMetricsReporter(ctx context.Context, authStore *store.Store) {
+	host := os.Getenv("DBX_HOST")
+	port := os.Getenv("DBX_PORT")
+	if host == "" || port == "" {
+		return
+	}
+
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			submitDogeboxMetrics(ctx, authStore, host, port)
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
+func submitDogeboxMetrics(ctx context.Context, authStore *store.Store, host string, port string) {
+	stats, err := authStore.WithCtx(ctx).GetDashboardStats()
+	if err != nil {
+		log.Printf("Dogelytics metrics unavailable: %v", err)
+		return
+	}
+
+	metrics := map[string]map[string]int{
+		"total_wallets_checked": {
+			"value": stats.TotalWalletsChecked,
+		},
+		"wallets_checked_last_24h": {
+			"value": stats.WalletsCheckedLast24h,
+		},
+		"unique_wallets_checked": {
+			"value": stats.UniqueWalletsChecked,
+		},
+		"unique_wallets_last_24h": {
+			"value": stats.UniqueWalletsLast24h,
+		},
+	}
+
+	data, err := json.Marshal(metrics)
+	if err != nil {
+		log.Printf("Marshal Dogelytics metrics: %v", err)
+		return
+	}
+
+	url := fmt.Sprintf("http://%s:%s/dbx/metrics", host, port)
+	resp, err := dogeboxMetricsClient.Post(url, "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		log.Printf("Submit Dogelytics metrics: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("Dogelytics metrics returned status %d: %s", resp.StatusCode, string(body))
+	}
 }
 
 type namedHTTPServer struct {

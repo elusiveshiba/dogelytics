@@ -100,7 +100,7 @@ func (s *Server) lookupBalance(r *http.Request, w http.ResponseWriter) (config.B
 		return config.BalanceResponse{}, "", false
 	}
 
-	balance, err := s.indexerStore.GetBalance(r.Context(), scriptType, pubkeyHash[1:], s.config.Confirmations)
+	balance, err := s.indexerStore.GetBalance(r.Context(), address, s.config.Confirmations)
 	if err != nil {
 		s.logBalanceRequest(r, address, false)
 		s.sendError(w, http.StatusInternalServerError, "database-error", fmt.Sprintf("Failed to get balance: %v", err))

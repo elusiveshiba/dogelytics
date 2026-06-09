@@ -1,0 +1,137 @@
+{
+  "manifestVersion": 1,
+  "meta": {
+    "name": "Dogelytics",
+    "version": "0.0.1",
+    "logoPath": "img/dogelytics icon.png",
+    "shortDescription": "Dogecoin balance API with admin and dashboard UIs",
+    "longDescription": "Dogelytics exposes a Dogecoin balance API backed by the Dogecoin Indexer HTTP API, reads sync heights from the same API, and serves admin and dashboard UIs.",
+    "upstreamVersions": null
+  },
+  "config": {
+    "showOnInstall": true,
+    "sections": [
+      {
+        "name": "admin",
+        "label": "Admin UI",
+        "fields": [
+          {
+            "label": "Enable Admin UI",
+            "name": "ENABLE_ADMIN_UI",
+            "type": "toggle",
+            "required": false,
+            "default": "false",
+            "help": "Enable the admin UI for login, registration, and API key management"
+          }
+        ]
+      },
+      {
+        "name": "dashboard",
+        "label": "Dashboard Tips",
+        "fields": [
+          {
+            "label": "Enable Dashboard Tips",
+            "name": "ENABLE_DASHBOARD_TIPS",
+            "type": "toggle",
+            "required": false,
+            "default": "true",
+            "help": "Show the Such coffee? tips widget on the dashboard"
+          },
+          {
+            "label": "Dashboard Tips Address",
+            "name": "DASHBOARD_TIPS_ADDRESS",
+            "type": "text",
+            "required": false,
+            "default": "DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz",
+            "help": "Dogecoin address shown in the dashboard tips widget"
+          }
+        ]
+      }
+    ]
+  },
+  "container": {
+    "build": {
+      "nixFile": "pup.nix",
+      "nixFileSha256": "0336c25361d3ac7cd1bd2f8b38293cc668700a7db6617c8d70794bbf601e1db9"
+    },
+    "services": [
+      {
+        "name": "dogelytics",
+        "command": {
+          "exec": "/bin/run.sh",
+          "cwd": "",
+          "env": null
+        }
+      }
+    ],
+    "exposes": [
+      {
+        "name": "api",
+        "type": "http",
+        "port": 4420,
+        "interfaces": null,
+        "listenOnHost": false,
+        "webUI": false
+      },
+      {
+        "name": "admin-ui",
+        "type": "http",
+        "port": 4421,
+        "interfaces": null,
+        "listenOnHost": false,
+        "webUI": true
+      },
+      {
+        "name": "dashboard-ui",
+        "type": "http",
+        "port": 4422,
+        "interfaces": null,
+        "listenOnHost": false,
+        "webUI": true
+      }
+    ],
+    "requiresInternet": false
+  },
+  "interfaces": [],
+  "dependencies": [
+    {
+      "interfaceName": "indexer-api",
+      "interfaceVersion": "0.0.2",
+      "permissionGroups": [
+        "API"
+      ],
+      "source": {
+        "sourceLocation": "",
+        "pupName": "",
+        "pupVersion": "",
+        "pupLogoBase64": ""
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "name": "total_wallets_checked",
+      "label": "Addresses Checked",
+      "type": "int",
+      "history": 30
+    },
+    {
+      "name": "wallets_checked_last_24h",
+      "label": "Addresses Checked 24h",
+      "type": "int",
+      "history": 30
+    },
+    {
+      "name": "unique_wallets_checked",
+      "label": "Unique Addresses Checked",
+      "type": "int",
+      "history": 30
+    },
+    {
+      "name": "unique_wallets_last_24h",
+      "label": "Unique Addresses Checked 24h",
+      "type": "int",
+      "history": 30
+    }
+  ]
+}

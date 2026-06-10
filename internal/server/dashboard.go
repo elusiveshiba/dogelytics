@@ -2,9 +2,7 @@ package server
 
 import (
 	"log"
-	"net"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -16,13 +14,9 @@ func (s *Server) HandleGETDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := struct {
-		ShowAdminLink  bool
-		AdminURL       string
 		ShowTipsWidget bool
 		TipsAddress    string
 	}{
-		ShowAdminLink:  s.config.EnableAdminUI,
-		AdminURL:       uiURLForPort(r, s.config.AdminUIPort),
 		ShowTipsWidget: s.config.EnableDashboardTips && strings.TrimSpace(s.config.DashboardTipsAddress) != "",
 		TipsAddress:    s.config.DashboardTipsAddress,
 	}
@@ -401,9 +395,6 @@ body {
       </p>
       <div class="links">
         <a class="docs-button" href="/docs">docs</a>
-        {{if .ShowAdminLink}}
-        <a href="{{.AdminURL}}">Open admin UI</a>
-        {{end}}
       </div>
     </div>
   </div>
@@ -1074,21 +1065,4 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 	response.UniqueWalletsChecked = stats.UniqueWalletsChecked
 	response.UniqueWalletsLast24h = stats.UniqueWalletsLast24h
 	s.sendJSON(w, http.StatusOK, response)
-}
-
-func uiURLForPort(r *http.Request, port int) string {
-	host := r.Host
-	if splitHost, _, err := net.SplitHostPort(r.Host); err == nil {
-		host = splitHost
-	}
-
-	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
-		host = "[" + host + "]"
-	}
-
-	return "http://" + net.JoinHostPort(host, portString(port))
-}
-
-func portString(port int) string {
-	return strconv.Itoa(port)
 }

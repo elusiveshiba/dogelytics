@@ -107,8 +107,8 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 			t.Fatalf("expected dashboard conversion UI to contain %q in %q", want, body)
 		}
 	}
-	if !strings.Contains(body, "Open admin UI") {
-		t.Fatalf("expected admin UI link in %q", body)
+	if strings.Contains(body, "Open admin UI") || strings.Contains(body, `href="http://dogelytics.local:4421"`) {
+		t.Fatalf("did not expect dashboard admin UI link in %q", body)
 	}
 	for _, want := range []string{
 		"Wallets",

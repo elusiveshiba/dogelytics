@@ -17,7 +17,7 @@ let
     subPackages = [ "cmd/dogelytics" ];
   };
 
-  dogelytics = pkgs.writeShellScriptBin "run.sh" ''
+  dogelytics-run = pkgs.writeShellScriptBin "run.sh" ''
     set -eu
 
     PGDATA="${storageDirectory}/postgres"
@@ -89,6 +89,13 @@ let
     ${dogelytics-bin}/bin/dogelytics &
     dogelytics_pid="$!"
     wait "$dogelytics_pid"
+  '';
+
+  dogelytics = pkgs.runCommand "dogelytics" {} ''
+    mkdir -p "$out/bin"
+    cp ${dogelytics-run}/bin/run.sh "$out/bin/run.sh"
+    chmod +x "$out/bin/run.sh"
+    cp -R ${./img} "$out/img"
   '';
 in
 {

@@ -10,7 +10,7 @@ import (
 
 // BalanceStore defines the indexer operations needed by the HTTP API.
 type BalanceStore interface {
-	GetBalance(ctx context.Context, address string, confirmations int64) (indexer.Balance, error)
+	GetBalance(ctx context.Context, address string) (indexer.Balance, error)
 	CurrentHeight(ctx context.Context) (int64, error)
 }
 

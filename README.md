@@ -170,7 +170,6 @@ Configuration is loaded in this order (later sources override earlier ones):
 | `DOGELYTICS_DBURL` | `-dogelytics-dburl` | PostgreSQL URL for dogelytics database (users, keys, sessions) | `postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable` |
 | `BIND` | `-bind` | HTTP server bind address | `localhost:4420` |
 | `CORS` | `-cors` | CORS allowed origin (`*` for all) | `*` |
-| `CONFIRMATIONS` | `-confirmations` | Confirmations required for available balance | `6` |
 | `RATELIMIT` | `-ratelimit` | Max requests per IP per minute (0 = disabled) | `10` |
 | `API_KEY_RATELIMIT` | `-apikey-ratelimit` | Max requests per API key per minute (0 = disabled) | `120` |
 | `SESSION_SECRET` | `-session-secret` | Session HMAC secret (required when admin UI is enabled) | _(empty)_ |

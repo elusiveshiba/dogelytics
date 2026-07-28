@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -35,7 +34,8 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	} else {
 		height, err := s.indexerStore.CurrentHeight(r.Context())
 		if err != nil {
-			s.sendError(w, http.StatusInternalServerError, "database-error", fmt.Sprintf("Database error: %v", err))
+			log.Printf("[Dogelytics] indexer health request failed: %v", err)
+			s.sendError(w, http.StatusServiceUnavailable, "indexer-unavailable", "Indexer sync data is unavailable")
 			return
 		}
 		response.IndexerHeight = height
@@ -100,10 +100,11 @@ func (s *Server) lookupBalance(r *http.Request, w http.ResponseWriter) (config.B
 		return config.BalanceResponse{}, "", false
 	}
 
-	balance, err := s.indexerStore.GetBalance(r.Context(), address, s.config.Confirmations)
+	balance, err := s.indexerStore.GetBalance(r.Context(), address)
 	if err != nil {
 		s.logBalanceRequest(r, address, false)
-		s.sendError(w, http.StatusInternalServerError, "database-error", fmt.Sprintf("Failed to get balance: %v", err))
+		log.Printf("[Dogelytics] indexer balance request failed: %v", err)
+		s.sendError(w, http.StatusBadGateway, "indexer-error", "Failed to retrieve balance from the indexer")
 		return config.BalanceResponse{}, "", false
 	}
 

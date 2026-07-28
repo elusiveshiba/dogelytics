@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
+
+const maxIndexerResponseBytes = 1 << 20
 
 // SyncHeights describes the indexer-owned sync heights exposed over HTTP.
 type SyncHeights struct {
@@ -61,7 +64,7 @@ func (c *SyncClient) SyncHeights(ctx context.Context) (SyncHeights, error) {
 		CoreHeadersHeight *int64     `json:"core_headers_height"`
 		CoreSyncUpdatedAt *time.Time `json:"core_sync_updated_at"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := decodeBoundedJSON(resp.Body, &payload); err != nil {
 		return SyncHeights{}, fmt.Errorf("decode indexer sync heights: %w", err)
 	}
 
@@ -73,7 +76,7 @@ func (c *SyncClient) SyncHeights(ctx context.Context) (SyncHeights, error) {
 	}, nil
 }
 
-func (c *SyncClient) GetBalance(ctx context.Context, address string, _ int64) (Balance, error) {
+func (c *SyncClient) GetBalance(ctx context.Context, address string) (Balance, error) {
 	reqURL := c.baseURL + "/balance?address=" + url.QueryEscape(address)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -91,11 +94,22 @@ func (c *SyncClient) GetBalance(ctx context.Context, address string, _ int64) (B
 	}
 
 	var balance Balance
-	if err := json.NewDecoder(resp.Body).Decode(&balance); err != nil {
+	if err := decodeBoundedJSON(resp.Body, &balance); err != nil {
 		return Balance{}, fmt.Errorf("decode indexer balance: %w", err)
 	}
 
 	return balance, nil
+}
+
+func decodeBoundedJSON(body io.Reader, destination any) error {
+	data, err := io.ReadAll(io.LimitReader(body, maxIndexerResponseBytes+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > maxIndexerResponseBytes {
+		return fmt.Errorf("response exceeds %d bytes", maxIndexerResponseBytes)
+	}
+	return json.Unmarshal(data, destination)
 }
 
 func (c *SyncClient) CurrentHeight(ctx context.Context) (int64, error) {

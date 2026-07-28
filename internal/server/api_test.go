@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
 	"github.com/dogeorg/dogelytics/internal/store"
@@ -28,7 +27,7 @@ type fakeSyncSource struct {
 	err         error
 }
 
-func (f *fakeBalanceStore) GetBalance(_ context.Context, address string, _ int64) (indexer.Balance, error) {
+func (f *fakeBalanceStore) GetBalance(_ context.Context, address string) (indexer.Balance, error) {
 	f.lastAddress = address
 	return f.balance, f.balanceErr
 }
@@ -165,8 +164,8 @@ func TestHandleHealthStoreError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", rec.Code)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
 	}
 }
 
@@ -205,13 +204,13 @@ func TestHandleBalanceInvalidAddress(t *testing.T) {
 func TestHandleBalanceSuccess(t *testing.T) {
 	store := &fakeBalanceStore{
 		balance: indexer.Balance{
-			Incoming:  koinu.Koinu(100),
-			Available: koinu.Koinu(200),
-			Outgoing:  koinu.Koinu(50),
-			Current:   koinu.Koinu(300),
+			Incoming:  "100",
+			Available: "200",
+			Outgoing:  "50",
+			Current:   "300",
 		},
 	}
-	srv := newTestServer(store, &config.Config{CorsOrigin: "*", Confirmations: 6})
+	srv := newTestServer(store, &config.Config{CorsOrigin: "*"})
 
 	req := httptest.NewRequest(http.MethodGet, "/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8", nil)
 	rec := httptest.NewRecorder()
@@ -228,7 +227,7 @@ func TestHandleBalanceSuccess(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode balance response: %v", err)
 	}
-	if resp.Current != koinu.Koinu(300) {
+	if resp.Current != "300" {
 		t.Fatalf("unexpected current balance: %v", resp.Current)
 	}
 }

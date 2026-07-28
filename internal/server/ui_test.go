@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
 )
@@ -332,17 +331,16 @@ func TestDashboardBalanceRateLimit(t *testing.T) {
 	srv := NewServer(
 		&fakeBalanceStore{
 			balance: indexer.Balance{
-				Incoming:  koinu.Koinu(1),
-				Available: koinu.Koinu(2),
-				Outgoing:  koinu.Koinu(3),
-				Current:   koinu.Koinu(4),
+				Incoming:  "1",
+				Available: "2",
+				Outgoing:  "3",
+				Current:   "4",
 			},
 		},
 		nil,
 		nil,
 		&config.Config{
 			CorsOrigin:        "*",
-			Confirmations:     6,
 			RateLimit:         1,
 			APIKeyRateLimit:   5,
 			EnableDashboardUI: true,

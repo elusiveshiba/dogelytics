@@ -12,7 +12,6 @@ type Config struct {
 	DogelyticsDbURL      string
 	BindAddr             string
 	CorsOrigin           string
-	Confirmations        int64
 	RateLimit            int
 	APIKeyRateLimit      int
 	SessionSecret        string
@@ -117,7 +116,6 @@ func ParseConfig() *Config {
 	envDogelyticsDbURL := getEnv("DOGELYTICS_DBURL", "postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable")
 	envBindAddr := getEnv("BIND", "localhost:4420")
 	envCorsOrigin := getEnv("CORS", "*")
-	envConfirmations := getEnvInt64("CONFIRMATIONS", 6)
 	envRateLimit := getEnvInt("RATELIMIT", 10)
 	envAPIKeyRateLimit := getEnvInt("API_KEY_RATELIMIT", 120)
 	envSessionSecret := getEnv("SESSION_SECRET", "")
@@ -135,7 +133,6 @@ func ParseConfig() *Config {
 	flag.StringVar(&config.DogelyticsDbURL, "dogelytics-dburl", envDogelyticsDbURL, "PostgreSQL database URL for dogelytics data (users, keys, logs) (env: DOGELYTICS_DBURL)")
 	flag.StringVar(&config.BindAddr, "bind", envBindAddr, "HTTP server bind address (env: BIND)")
 	flag.StringVar(&config.CorsOrigin, "cors", envCorsOrigin, "CORS allowed origin (env: CORS)")
-	flag.Int64Var(&config.Confirmations, "confirmations", envConfirmations, "Number of confirmations for available balance (env: CONFIRMATIONS)")
 	flag.IntVar(&config.RateLimit, "ratelimit", envRateLimit, "Maximum requests per IP per minute (0 = disabled) (env: RATELIMIT)")
 	flag.IntVar(&config.APIKeyRateLimit, "apikey-ratelimit", envAPIKeyRateLimit, "Maximum requests per API key per minute (0 = disabled) (env: API_KEY_RATELIMIT)")
 	flag.StringVar(&config.SessionSecret, "session-secret", envSessionSecret, "Session HMAC secret (required for local email/password auth) (env: SESSION_SECRET)")

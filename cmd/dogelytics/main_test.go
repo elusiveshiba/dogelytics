@@ -1,23 +1,17 @@
 package main
 
 import (
+	"net/http"
 	"testing"
-
-	"github.com/dogeorg/dogelytics/internal/config"
+	"time"
 )
 
-func TestValidateUIConfig(t *testing.T) {
-	t.Run("admin ui requires session secret", func(t *testing.T) {
-		err := validateUIConfig(&config.Config{EnableAdminUI: true})
-		if err == nil {
-			t.Fatal("expected error when admin UI is enabled without a session secret")
-		}
-	})
-
-	t.Run("dashboard ui does not require session secret", func(t *testing.T) {
-		err := validateUIConfig(&config.Config{EnableDashboardUI: true})
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-	})
+func TestNewHTTPServerAppliesTimeouts(t *testing.T) {
+	server := newHTTPServer("127.0.0.1:4420", http.NotFoundHandler())
+	if server.ReadHeaderTimeout != 5*time.Second || server.ReadTimeout != 15*time.Second {
+		t.Fatalf("unexpected read timeouts: header=%v request=%v", server.ReadHeaderTimeout, server.ReadTimeout)
+	}
+	if server.WriteTimeout != 30*time.Second || server.IdleTimeout != 60*time.Second {
+		t.Fatalf("unexpected write/idle timeouts: write=%v idle=%v", server.WriteTimeout, server.IdleTimeout)
+	}
 }

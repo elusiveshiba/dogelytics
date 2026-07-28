@@ -148,6 +148,19 @@ func (s *Store) GetAPIKeyByKID(ctx context.Context, kid string) (APIKey, error) 
 	return k, nil
 }
 
+// UpdateAPIKeySecretHash replaces an API key hash if it has not changed since it was read.
+func (s *Store) UpdateAPIKeySecretHash(ctx context.Context, kid, previousHash, replacementHash string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE dogelytics_api_keys
+		SET secret_hash = $1
+		WHERE kid = $2 AND secret_hash = $3
+	`, replacementHash, kid, previousHash)
+	if err != nil {
+		return fmt.Errorf("update api key secret hash: %w", err)
+	}
+	return nil
+}
+
 // RevokeAPIKey soft-deletes a key
 func (s *Store) RevokeAPIKey(ctx context.Context, userID string, kid string, revokedAt time.Time) error {
 	query := `

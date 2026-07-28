@@ -24,7 +24,7 @@ type ConversionStore interface {
 
 // HandleConversion responds with a cached or refreshed DOGE conversion rate.
 func (s *Server) HandleConversion(w http.ResponseWriter, r *http.Request) {
-	s.setCORSHeaders(w)
+	s.setCORSHeaders(w, r)
 
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)

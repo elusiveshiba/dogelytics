@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 // HandleGETKeys shows the user's keys and management UI
@@ -656,8 +654,8 @@ func (s *Server) HandlePOSTCreateKey(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	if err := parseLimitedForm(w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	// Enforce per-user limit
@@ -712,12 +710,7 @@ func (s *Server) HandlePOSTCreateKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	secretHashBytes, err := bcrypt.GenerateFromPassword([]byte(secret), 12)
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	secretHash := string(secretHashBytes)
+	secretHash := hashAPIKeySecret(secret)
 	id, err := generateID(16)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -826,8 +819,8 @@ func (s *Server) HandlePOSTRevokeKey(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	if err := parseLimitedForm(w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	kid := strings.TrimSpace(r.Form.Get("kid"))
@@ -849,8 +842,8 @@ func (s *Server) HandlePOSTExpireKey(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	if err := parseLimitedForm(w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	kid := strings.TrimSpace(r.Form.Get("kid"))

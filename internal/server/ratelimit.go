@@ -3,6 +3,8 @@ package server
 import (
 	"net"
 	"net/http"
+	"net/netip"
+	"strings"
 	"sync"
 	"time"
 )
@@ -109,4 +111,43 @@ func getClientIP(request *http.Request) string {
 		return request.RemoteAddr
 	}
 	return ip
+}
+
+func (s *Server) getClientIP(request *http.Request) string {
+	peer := getClientIP(request)
+	if s == nil || s.config == nil {
+		return peer
+	}
+	if !trustedProxy(peer, s.config.TrustedProxies) {
+		return peer
+	}
+	forwarded := strings.Split(request.Header.Get("X-Forwarded-For"), ",")
+	if len(forwarded) == 0 {
+		return peer
+	}
+	candidate := strings.TrimSpace(forwarded[0])
+	if address, err := netip.ParseAddr(candidate); err == nil {
+		return address.String()
+	}
+	return peer
+}
+
+func trustedProxy(peer, configured string) bool {
+	address, err := netip.ParseAddr(strings.TrimSpace(peer))
+	if err != nil {
+		return false
+	}
+	for _, entry := range strings.Split(configured, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if prefix, err := netip.ParsePrefix(entry); err == nil && prefix.Contains(address) {
+			return true
+		}
+		if trusted, err := netip.ParseAddr(entry); err == nil && trusted == address {
+			return true
+		}
+	}
+	return false
 }

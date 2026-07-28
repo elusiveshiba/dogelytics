@@ -60,10 +60,10 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, userID
 		return
 	}
 
-	// Only set Secure when request arrived over HTTPS (directly or via proxy).
-	secureCookie := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	secureCookie := s.requestIsHTTPS(r) || strings.HasPrefix(strings.ToLower(s.config.PublicURL), "https://")
 
-	exp := time.Now().Add(sessionTTL).Unix()
+	expiresAt := time.Now().Add(sessionTTL)
+	exp := expiresAt.Unix()
 	sig := signSession([]byte(s.config.SessionSecret), userID, exp)
 	val := fmt.Sprintf("%s|%d|%s", userID, exp, sig)
 	http.SetCookie(w, &http.Cookie{
@@ -73,12 +73,14 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, userID
 		HttpOnly: true,
 		Secure:   secureCookie,
 		SameSite: http.SameSiteLaxMode,
+		Expires:  expiresAt,
+		MaxAge:   int(sessionTTL.Seconds()),
 	})
 	log.Printf("[Dogelytics][auth] session cookie set for user_id=%s secure=%t", userID, secureCookie)
 }
 
 // clearSessionCookie removes the session cookie
-func clearSessionCookie(w http.ResponseWriter) {
+func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
@@ -86,6 +88,7 @@ func clearSessionCookie(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   s.requestIsHTTPS(r) || strings.HasPrefix(strings.ToLower(s.config.PublicURL), "https://"),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -227,8 +230,8 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	if err := parseLimitedForm(w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	email := strings.TrimSpace(strings.ToLower(r.Form.Get("email")))
@@ -274,9 +277,9 @@ func (s *Server) HandleGETLogin(w http.ResponseWriter, r *http.Request) {
 
 // HandlePOSTLogin authenticates a user
 func (s *Server) HandlePOSTLogin(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	if err := parseLimitedForm(w, r); err != nil {
 		log.Printf("[Dogelytics][auth] login failed: parse form error: %v", err)
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	email := strings.TrimSpace(strings.ToLower(r.Form.Get("email")))
@@ -304,7 +307,7 @@ func (s *Server) HandlePOSTLogin(w http.ResponseWriter, r *http.Request) {
 
 // HandlePOSTLogout logs out the session
 func (s *Server) HandlePOSTLogout(w http.ResponseWriter, r *http.Request) {
-	clearSessionCookie(w)
+	s.clearSessionCookie(w, r)
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

@@ -12,6 +12,7 @@ func (s *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if key, ok := getAPIKey(r.Context()); ok && key.KID != "" {
 			if s.apiLimiter != nil && !s.apiLimiter.Allow(key.KID) {
+				w.Header().Set("Retry-After", retryAfterSeconds(s.apiLimiter.RetryAfter(key.KID)))
 				s.sendError(
 					w,
 					http.StatusTooManyRequests,
@@ -26,8 +27,9 @@ func (s *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		if s.ipLimiter != nil {
-			clientIP := getClientIP(r)
+			clientIP := s.getClientIP(r)
 			if !s.ipLimiter.Allow(clientIP) {
+				w.Header().Set("Retry-After", retryAfterSeconds(s.ipLimiter.RetryAfter(clientIP)))
 				s.sendError(
 					w,
 					http.StatusTooManyRequests,
@@ -40,6 +42,14 @@ func (s *Server) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		next.ServeHTTP(w, r)
 	}
+}
+
+func retryAfterSeconds(duration time.Duration) string {
+	seconds := int(math.Ceil(duration.Seconds()))
+	if seconds < 1 {
+		seconds = 1
+	}
+	return fmt.Sprintf("%d", seconds)
 }
 
 func rateLimitMessage(limit int, retryAfter time.Duration) string {

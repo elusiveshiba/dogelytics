@@ -16,6 +16,8 @@ type Config struct {
 	DogelyticsDbURL      string
 	BindAddr             string
 	CorsOrigin           string
+	PublicURL            string
+	TrustedProxies       string
 	RateLimit            int
 	APIKeyRateLimit      int
 	SessionSecret        string
@@ -118,6 +120,8 @@ func Load(args []string) (*Config, error) {
 	flags.StringVar(&cfg.DogelyticsDbURL, "dogelytics-dburl", databaseURL, "PostgreSQL database URL (env: DOGELYTICS_DBURL or DOGELYTICS_DBURL_FILE)")
 	flags.StringVar(&cfg.BindAddr, "bind", env("BIND", "localhost:4420"), "HTTP server bind address (env: BIND)")
 	flags.StringVar(&cfg.CorsOrigin, "cors", env("CORS", "*"), "CORS allowed origin (env: CORS)")
+	flags.StringVar(&cfg.PublicURL, "public-url", env("PUBLIC_URL", ""), "Public HTTPS origin used for cookies and CSRF checks (env: PUBLIC_URL)")
+	flags.StringVar(&cfg.TrustedProxies, "trusted-proxies", env("TRUSTED_PROXIES", ""), "Comma-separated trusted proxy IPs or CIDRs (env: TRUSTED_PROXIES)")
 	flags.IntVar(&cfg.RateLimit, "ratelimit", rateLimit, "Maximum requests per IP per minute (env: RATELIMIT)")
 	flags.IntVar(&cfg.APIKeyRateLimit, "apikey-ratelimit", apiKeyRateLimit, "Maximum requests per API key per minute (env: API_KEY_RATELIMIT)")
 	flags.StringVar(&cfg.SessionSecret, "session-secret", sessionSecret, "Session HMAC secret (env: SESSION_SECRET or SESSION_SECRET_FILE)")
@@ -170,6 +174,15 @@ func (cfg *Config) Validate() error {
 	}
 	if cfg.RateLimit < 0 || cfg.APIKeyRateLimit < 0 {
 		return errors.New("rate limits cannot be negative")
+	}
+	if cfg.PublicURL != "" {
+		parsed, err := url.ParseRequestURI(cfg.PublicURL)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Path != "" {
+			return errors.New("PUBLIC_URL must be an HTTP or HTTPS origin without a path")
+		}
+	}
+	if err := validateTrustedProxies(cfg.TrustedProxies); err != nil {
+		return err
 	}
 	if cfg.MaxKeysPerUser < 1 {
 		return errors.New("MAX_KEYS_PER_USER must be at least 1")
@@ -268,6 +281,25 @@ func validatePostgresURL(value string) error {
 func validatePort(name string, port int) error {
 	if port < 1 || port > 65535 {
 		return fmt.Errorf("%s must be between 1 and 65535", name)
+	}
+	return nil
+}
+
+func validateTrustedProxies(value string) error {
+	for _, entry := range strings.Split(value, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if strings.Contains(entry, "/") {
+			if _, _, err := net.ParseCIDR(entry); err != nil {
+				return fmt.Errorf("TRUSTED_PROXIES contains invalid CIDR %q", entry)
+			}
+			continue
+		}
+		if net.ParseIP(entry) == nil {
+			return fmt.Errorf("TRUSTED_PROXIES contains invalid IP %q", entry)
+		}
 	}
 	return nil
 }

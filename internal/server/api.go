@@ -1,17 +1,58 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/dogelytics/internal/config"
 )
 
+// HandleLiveness reports whether the HTTP process can serve requests.
+func (s *Server) HandleLiveness(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.sendError(w, http.StatusMethodNotAllowed, "method-not-allowed", "Only GET is allowed")
+		return
+	}
+	s.sendJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// HandleReadiness verifies the database and indexer dependencies.
+func (s *Server) HandleReadiness(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.sendError(w, http.StatusMethodNotAllowed, "method-not-allowed", "Only GET is allowed")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	if s.authStore == nil {
+		s.sendError(w, http.StatusServiceUnavailable, "database-unavailable", "Database is unavailable")
+		return
+	}
+	if err := s.authStore.Ping(ctx); err != nil {
+		log.Printf("[Dogelytics] readiness database check failed: %v", err)
+		s.sendError(w, http.StatusServiceUnavailable, "database-unavailable", "Database is unavailable")
+		return
+	}
+	if s.syncSource == nil {
+		s.sendError(w, http.StatusServiceUnavailable, "indexer-unavailable", "Indexer is unavailable")
+		return
+	}
+	if _, err := s.syncSource.SyncHeights(ctx); err != nil {
+		log.Printf("[Dogelytics] readiness indexer check failed: %v", err)
+		s.sendError(w, http.StatusServiceUnavailable, "indexer-unavailable", "Indexer is unavailable")
+		return
+	}
+	s.sendJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // HandleHealth responds to health check requests.
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
-	s.setCORSHeaders(w)
+	s.setCORSHeaders(w, r)
 
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
@@ -46,7 +87,7 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 
 // HandleBalance responds to balance query requests.
 func (s *Server) HandleBalance(w http.ResponseWriter, r *http.Request) {
-	s.setCORSHeaders(w)
+	s.setCORSHeaders(w, r)
 
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
@@ -116,10 +157,26 @@ func (s *Server) lookupBalance(r *http.Request, w http.ResponseWriter) (config.B
 	}, address, true
 }
 
-func (s *Server) setCORSHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", s.config.CorsOrigin)
+func (s *Server) setCORSHeaders(w http.ResponseWriter, r *http.Request) {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	allowedOrigin := ""
+	for _, configured := range strings.Split(s.config.CorsOrigin, ",") {
+		configured = strings.TrimSpace(configured)
+		if configured == "*" {
+			allowedOrigin = "*"
+			break
+		}
+		if origin != "" && configured == origin {
+			allowedOrigin = origin
+			break
+		}
+	}
+	if allowedOrigin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+	}
+	w.Header().Add("Vary", "Origin")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Key")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
@@ -148,7 +205,7 @@ func (s *Server) logBalanceRequest(r *http.Request, address string, success bool
 		apiKey = key.KID
 	}
 
-	if err := s.authStore.LogRequest(r.Context(), getClientIP(r), apiKey, address, success); err != nil {
+	if err := s.authStore.LogRequest(r.Context(), s.getClientIP(r), apiKey, address, success); err != nil {
 		log.Printf("[Dogelytics] failed to log request: %v", err)
 	}
 }

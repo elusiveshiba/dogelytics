@@ -57,10 +57,6 @@ func run() error {
 		}()
 	}
 
-	if err := validateUIConfig(cfg); err != nil {
-		return err
-	}
-
 	if authStore != nil {
 		startMetricsReporter(ctx, authStore)
 	}
@@ -76,35 +72,38 @@ func run() error {
 
 	servers := []namedHTTPServer{
 		{
-			name: "api",
-			server: &http.Server{
-				Addr:    cfg.BindAddr,
-				Handler: srv.APIHandler(),
-			},
+			name:   "api",
+			server: newHTTPServer(cfg.BindAddr, srv.APIHandler()),
 		},
 	}
 
 	if cfg.EnableAdminUI {
 		servers = append(servers, namedHTTPServer{
-			name: "admin-ui",
-			server: &http.Server{
-				Addr:    listenerAddrForPort(cfg.BindAddr, cfg.AdminUIPort),
-				Handler: srv.AdminHandler(),
-			},
+			name:   "admin-ui",
+			server: newHTTPServer(listenerAddrForPort(cfg.BindAddr, cfg.AdminUIPort), srv.AdminHandler()),
 		})
 	}
 
 	if cfg.EnableDashboardUI {
 		servers = append(servers, namedHTTPServer{
-			name: "dashboard-ui",
-			server: &http.Server{
-				Addr:    listenerAddrForPort(cfg.BindAddr, cfg.DashboardUIPort),
-				Handler: srv.DashboardHandler(),
-			},
+			name:   "dashboard-ui",
+			server: newHTTPServer(listenerAddrForPort(cfg.BindAddr, cfg.DashboardUIPort), srv.DashboardHandler()),
 		})
 	}
 
 	return runHTTPServers(ctx, servers)
+}
+
+func newHTTPServer(address string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 }
 
 func startMetricsReporter(ctx context.Context, authStore *store.Store) {
@@ -251,12 +250,4 @@ func listenerAddrForPort(bindAddr string, port int) string {
 	}
 
 	return net.JoinHostPort(host, strconv.Itoa(port))
-}
-
-func validateUIConfig(cfg *config.Config) error {
-	if cfg.EnableAdminUI && cfg.SessionSecret == "" {
-		return errors.New("SESSION_SECRET is required when ENABLE_ADMIN_UI=true")
-	}
-
-	return nil
 }

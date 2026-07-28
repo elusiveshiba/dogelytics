@@ -29,6 +29,7 @@ type Server struct {
 	config           *config.Config
 	ipLimiter        *RateLimiter
 	apiLimiter       *RateLimiter
+	authLimiter      *RateLimiter
 }
 
 // NewServer creates a new Server instance.
@@ -42,6 +43,7 @@ func NewServer(indexerStore BalanceStore, syncSource SyncSource, authStore *stor
 		config:           cfg,
 		ipLimiter:        ipLimiter,
 		apiLimiter:       apiLimiter,
+		authLimiter:      NewRateLimiter(10),
 	}
 }
 

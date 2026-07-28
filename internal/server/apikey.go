@@ -56,7 +56,7 @@ func (s *Server) APIKeyAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			sendInvalidAPIKeyError(w)
 			return
 		}
-		k, err := s.authStore.GetAPIKeyByKID(kid)
+		k, err := s.authStore.GetAPIKeyByKID(r.Context(), kid)
 		if err != nil || k.ID == "" {
 			sendInvalidAPIKeyError(w)
 			return

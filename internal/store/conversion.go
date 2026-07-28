@@ -16,24 +16,6 @@ type ConversionRate struct {
 	CoinGeckoUpdatedAt *time.Time
 }
 
-// EnsureConversionRatesSchema creates the conversion cache table if it doesn't exist.
-func (s *Store) EnsureConversionRatesSchema() error {
-	schema := `
-		CREATE TABLE IF NOT EXISTS dogelytics_conversion_rates (
-			currency TEXT PRIMARY KEY,
-			rate NUMERIC NOT NULL,
-			coingecko_updated_at TIMESTAMPTZ,
-			fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
-		);
-		CREATE INDEX IF NOT EXISTS idx_dgl_conversion_rates_fetched_at ON dogelytics_conversion_rates(fetched_at);
-	`
-	_, err := s.db.ExecContext(s.ctx, schema)
-	if err != nil {
-		return fmt.Errorf("ensure conversion rates schema: %w", err)
-	}
-	return nil
-}
-
 // GetFreshConversionRate returns a cached rate when it is newer than maxAge.
 func (s *Store) GetFreshConversionRate(ctx context.Context, currency string, maxAge time.Duration) (ConversionRate, bool, error) {
 	const query = `

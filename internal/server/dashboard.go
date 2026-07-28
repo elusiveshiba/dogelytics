@@ -1051,7 +1051,7 @@ func (s *Server) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := s.authStore.WithCtx(r.Context()).GetDashboardStats()
+	stats, err := s.authStore.GetDashboardStats(r.Context())
 	if err != nil {
 		log.Printf("[Dogelytics] failed to load dashboard stats: %v", err)
 		s.sendJSON(w, http.StatusOK, response)

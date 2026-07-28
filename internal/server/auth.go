@@ -238,7 +238,7 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Check if exists
-	if existing, _, err := s.authStore.GetUserByEmail(email); err != nil {
+	if existing, _, err := s.authStore.GetUserByEmail(r.Context(), email); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	} else if existing.ID != "" {
@@ -256,7 +256,7 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	u, err := s.authStore.CreateUser(id, email, hash)
+	u, err := s.authStore.CreateUser(r.Context(), id, email, hash)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -286,7 +286,7 @@ func (s *Server) HandlePOSTLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid credentials", http.StatusBadRequest)
 		return
 	}
-	u, hash, err := s.authStore.GetUserByEmail(email)
+	u, hash, err := s.authStore.GetUserByEmail(r.Context(), email)
 	if err != nil {
 		log.Printf("[Dogelytics][auth] login failed for email=%s: store error: %v", email, err)
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -327,7 +327,7 @@ func (s *Server) getUserFromRequest(r *http.Request) (store.User, bool) {
 	if !ok || uid == "" {
 		return store.User{}, false
 	}
-	u, err := s.authStore.GetUserByID(uid)
+	u, err := s.authStore.GetUserByID(r.Context(), uid)
 	if err != nil || u.ID == "" {
 		return store.User{}, false
 	}

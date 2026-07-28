@@ -35,7 +35,10 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	cfg := config.ParseConfig()
+	cfg, err := config.ParseConfig()
+	if err != nil {
+		return err
+	}
 
 	indexerClient := indexer.NewSyncClient(cfg.IndexerAPIURL, nil)
 	if indexerClient == nil {
@@ -128,7 +131,7 @@ func startMetricsReporter(ctx context.Context, authStore *store.Store) {
 }
 
 func submitDogeboxMetrics(ctx context.Context, authStore *store.Store, host string, port string) {
-	stats, err := authStore.WithCtx(ctx).GetDashboardStats()
+	stats, err := authStore.GetDashboardStats(ctx)
 	if err != nil {
 		log.Printf("Dogelytics metrics unavailable: %v", err)
 		return
@@ -180,47 +183,14 @@ type serverResult struct {
 }
 
 func openAuthStore(ctx context.Context, cfg *config.Config) (*store.Store, error) {
-	if cfg.DogelyticsDbURL == "" {
-		if cfg.EnableAdminUI {
-			return nil, errors.New("DOGELYTICS_DBURL is required when ENABLE_ADMIN_UI=true")
-		}
-		return nil, nil
-	}
-
 	authStore, err := store.NewStore(cfg.DogelyticsDbURL, ctx)
 	if err != nil {
-		if cfg.EnableAdminUI {
-			return nil, err
-		}
-		log.Printf("Dogelytics auth store unavailable, continuing without auth-backed features: %v", err)
-		return nil, nil
+		return nil, err
 	}
-
-	if err := authStore.EnsureAuthSchema(); err != nil {
-		if cfg.EnableAdminUI {
-			return nil, err
-		}
-		log.Printf("Dogelytics auth schema unavailable, continuing without auth-backed features: %v", err)
+	if err := authStore.Migrate(ctx); err != nil {
 		_ = authStore.Close()
-		return nil, nil
+		return nil, err
 	}
-	if err := authStore.EnsureRequestLogsSchema(); err != nil {
-		if cfg.EnableAdminUI {
-			return nil, err
-		}
-		log.Printf("Dogelytics request log schema unavailable, continuing without auth-backed features: %v", err)
-		_ = authStore.Close()
-		return nil, nil
-	}
-	if err := authStore.EnsureConversionRatesSchema(); err != nil {
-		if cfg.EnableAdminUI {
-			return nil, err
-		}
-		log.Printf("Dogelytics conversion cache schema unavailable, continuing without auth-backed features: %v", err)
-		_ = authStore.Close()
-		return nil, nil
-	}
-
 	return authStore, nil
 }
 

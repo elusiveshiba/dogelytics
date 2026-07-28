@@ -148,8 +148,7 @@ func (s *Server) logBalanceRequest(r *http.Request, address string, success bool
 		apiKey = key.KID
 	}
 
-	authStore := s.authStore.WithCtx(r.Context())
-	if err := authStore.LogRequest(getClientIP(r), apiKey, address, success); err != nil {
+	if err := s.authStore.LogRequest(r.Context(), getClientIP(r), apiKey, address, success); err != nil {
 		log.Printf("[Dogelytics] failed to log request: %v", err)
 	}
 }

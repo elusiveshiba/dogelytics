@@ -26,16 +26,16 @@ import (
 var dogeboxMetricsClient = &http.Client{Timeout: 10 * time.Second}
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
+func runServer(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	cfg, err := config.ParseConfig()
+	cfg, err := config.Load(args)
 	if err != nil {
 		return err
 	}

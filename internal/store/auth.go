@@ -26,6 +26,12 @@ type APIKey struct {
 	RevokedAt  sql.NullTime
 }
 
+// APIKeyWithEmail is an administrative API-key listing row.
+type APIKeyWithEmail struct {
+	APIKey
+	Email string
+}
+
 // CreateUser inserts a new user with email and password hash
 func (s *Store) CreateUser(ctx context.Context, id string, email string, passwordHash string) (User, error) {
 	query := `
@@ -81,6 +87,27 @@ func (s *Store) GetUserByID(ctx context.Context, id string) (User, error) {
 	return u, nil
 }
 
+// ListUsers returns all users in stable creation order.
+func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, email, created_at FROM dogelytics_users ORDER BY created_at, email`)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer rows.Close()
+	var users []User
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Email, &user.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list users rows: %w", err)
+	}
+	return users, nil
+}
+
 // CreateAPIKey inserts a new API key record
 func (s *Store) CreateAPIKey(ctx context.Context, id string, userID string, kid string, secretHash string, expiresAt *time.Time) (APIKey, error) {
 	query := `
@@ -125,6 +152,38 @@ func (s *Store) GetAPIKeysByUserID(ctx context.Context, userID string) ([]APIKey
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list api keys rows: %w", err)
+	}
+	return keys, nil
+}
+
+// ListAPIKeys returns keys across users, optionally restricted to one email address.
+func (s *Store) ListAPIKeys(ctx context.Context, email string) ([]APIKeyWithEmail, error) {
+	query := `
+		SELECT k.id, k.user_id, k.kid, k.secret_hash, k.created_at, k.expires_at, k.revoked_at, u.email
+		FROM dogelytics_api_keys k
+		JOIN dogelytics_users u ON u.id = k.user_id
+	`
+	var args []any
+	if email != "" {
+		query += " WHERE u.email = $1"
+		args = append(args, email)
+	}
+	query += " ORDER BY k.created_at, k.kid"
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list administrative api keys: %w", err)
+	}
+	defer rows.Close()
+	var keys []APIKeyWithEmail
+	for rows.Next() {
+		var key APIKeyWithEmail
+		if err := rows.Scan(&key.ID, &key.UserID, &key.KID, &key.SecretHash, &key.CreatedAt, &key.ExpiresAt, &key.RevokedAt, &key.Email); err != nil {
+			return nil, fmt.Errorf("scan administrative api key: %w", err)
+		}
+		keys = append(keys, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list administrative api keys rows: %w", err)
 	}
 	return keys, nil
 }
@@ -174,6 +233,22 @@ func (s *Store) RevokeAPIKey(ctx context.Context, userID string, kid string, rev
 	}
 	_, _ = res.RowsAffected()
 	return nil
+}
+
+// RevokeAPIKeyByKID revokes an active key for administrative use.
+func (s *Store) RevokeAPIKeyByKID(ctx context.Context, kid string, revokedAt time.Time) (bool, error) {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE dogelytics_api_keys SET revoked_at = $1
+		WHERE kid = $2 AND revoked_at IS NULL
+	`, revokedAt, kid)
+	if err != nil {
+		return false, fmt.Errorf("revoke api key by kid: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("count revoked api keys: %w", err)
+	}
+	return count == 1, nil
 }
 
 // UpdateAPIKeyExpiry sets the expiry for a key

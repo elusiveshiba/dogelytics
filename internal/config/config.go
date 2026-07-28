@@ -163,9 +163,20 @@ func Load(args []string) (*Config, error) {
 	return cfg, nil
 }
 
-// ParseConfig loads configuration for the current process.
-func ParseConfig() (*Config, error) {
-	return Load(os.Args[1:])
+// LoadDatabaseURL reads and validates the database configuration used by admin commands.
+func LoadDatabaseURL() (string, error) {
+	loadDotEnvIfPresent(".env")
+	databaseURL, err := envOrFile("DOGELYTICS_DBURL")
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(databaseURL) == "" {
+		return "", errors.New("DOGELYTICS_DBURL or DOGELYTICS_DBURL_FILE is required")
+	}
+	if err := validatePostgresURL(databaseURL); err != nil {
+		return "", err
+	}
+	return databaseURL, nil
 }
 
 // Validate rejects ambiguous or unsafe runtime configuration.

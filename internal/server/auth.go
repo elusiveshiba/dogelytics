@@ -2,7 +2,6 @@ package server
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dogeorg/dogelytics/internal/credentials"
 	"github.com/dogeorg/dogelytics/internal/store"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -26,20 +26,12 @@ var parsedTemplates sync.Map
 
 // generateID returns a URL-safe random ID string with n random bytes
 func generateID(n int) (string, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
+	return credentials.GenerateID(n)
 }
 
 // hashPassword hashes a plaintext password using bcrypt
 func hashPassword(password string) (string, error) {
-	h, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	if err != nil {
-		return "", err
-	}
-	return string(h), nil
+	return credentials.HashPassword(password)
 }
 
 // checkPassword compares a bcrypt hash with a plaintext password

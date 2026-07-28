@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/dogeorg/dogelytics/internal/config"
+	"github.com/dogeorg/dogelytics/internal/credentials"
 	"golang.org/x/crypto/bcrypt"
 )
 
-const apiKeySHA256Prefix = "sha256:"
+const apiKeySHA256Prefix = credentials.APIKeySHA256Prefix
 
 // parseBearerOrHeader extracts token from Authorization: Bearer or X-Api-Key
 func parseBearerOrHeader(r *http.Request) (string, bool) {
@@ -95,8 +96,7 @@ func (s *Server) APIKeyAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func hashAPIKeySecret(secret string) string {
-	digest := sha256.Sum256([]byte(secret))
-	return apiKeySHA256Prefix + base64.RawURLEncoding.EncodeToString(digest[:])
+	return credentials.HashAPIKeySecret(secret)
 }
 
 func verifyAPIKeySecret(encodedHash, secret string) (valid bool, legacy bool) {

@@ -82,7 +82,7 @@ func TestLoadDotEnvIfPresent_HandlesExportAndQuotes(t *testing.T) {
 func TestLoadValidatesRequiredConfiguration(t *testing.T) {
 	for _, key := range []string{
 		"DOGELYTICS_DBURL", "DOGELYTICS_DBURL_FILE", "SESSION_SECRET", "SESSION_SECRET_FILE",
-		"ENABLE_ADMIN_UI", "ENABLE_DASHBOARD_UI", "RATELIMIT", "API_KEY_RATELIMIT",
+		"ENABLE_ADMIN_UI", "ENABLE_DASHBOARD_UI", "RATELIMIT", "API_KEY_RATELIMIT", "ANALYTICS_SECRET_FILE",
 	} {
 		t.Setenv(key, "")
 	}
@@ -92,6 +92,7 @@ func TestLoadValidatesRequiredConfiguration(t *testing.T) {
 	}
 
 	t.Setenv("DOGELYTICS_DBURL", "postgres://dogelytics:secret@localhost:5432/dogelytics?sslmode=disable")
+	t.Setenv("ANALYTICS_SECRET", strings.Repeat("a", 32))
 	cfg, err := Load([]string{"-bind", "127.0.0.1:5000", "-ratelimit", "25"})
 	if err != nil {
 		t.Fatalf("load valid configuration: %v", err)
@@ -116,6 +117,7 @@ func TestLoadReadsSecretFilesAndRejectsInvalidEnvironment(t *testing.T) {
 	t.Setenv("DOGELYTICS_DBURL_FILE", databaseFile)
 	t.Setenv("SESSION_SECRET", "")
 	t.Setenv("SESSION_SECRET_FILE", sessionFile)
+	t.Setenv("ANALYTICS_SECRET", strings.Repeat("a", 32))
 	t.Setenv("ENABLE_ADMIN_UI", "true")
 	cfg, err := Load(nil)
 	if err != nil {

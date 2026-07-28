@@ -59,6 +59,7 @@ func run() error {
 
 	if authStore != nil {
 		startMetricsReporter(ctx, authStore)
+		startAnalyticsMaintenance(ctx, authStore)
 	}
 
 	srv := server.NewServer(
@@ -190,7 +191,31 @@ func openAuthStore(ctx context.Context, cfg *config.Config) (*store.Store, error
 		_ = authStore.Close()
 		return nil, err
 	}
+	if cfg.EnableAnalytics {
+		authStore.ConfigureAnalytics(cfg.AnalyticsSecret, cfg.AnalyticsRetention)
+		if err := authStore.MigrateLegacyAnalytics(ctx); err != nil {
+			_ = authStore.Close()
+			return nil, err
+		}
+	}
 	return authStore, nil
+}
+
+func startAnalyticsMaintenance(ctx context.Context, authStore *store.Store) {
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			if err := authStore.PurgeExpiredAnalytics(ctx); err != nil && ctx.Err() == nil {
+				log.Printf("Purge expired analytics: %v", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 }
 
 func runHTTPServers(ctx context.Context, servers []namedHTTPServer) error {

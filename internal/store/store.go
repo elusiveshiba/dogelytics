@@ -17,7 +17,9 @@ const (
 
 // Store provides PostgreSQL-backed application storage.
 type Store struct {
-	db *sql.DB
+	db                 *sql.DB
+	analyticsSecret    []byte
+	analyticsRetention time.Duration
 }
 
 // NewStore opens and verifies a bounded PostgreSQL connection pool.

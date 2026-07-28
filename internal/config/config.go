@@ -18,6 +18,9 @@ type Config struct {
 	CorsOrigin           string
 	PublicURL            string
 	TrustedProxies       string
+	EnableAnalytics      bool
+	AnalyticsSecret      string
+	AnalyticsRetention   int
 	RateLimit            int
 	APIKeyRateLimit      int
 	SessionSecret        string
@@ -77,6 +80,10 @@ func Load(args []string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	analyticsSecret, err := envOrFile("ANALYTICS_SECRET")
+	if err != nil {
+		return nil, err
+	}
 	rateLimit, err := envInt("RATELIMIT", 10)
 	if err != nil {
 		return nil, err
@@ -113,6 +120,14 @@ func Load(args []string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	enableAnalytics, err := envBool("ENABLE_ANALYTICS", true)
+	if err != nil {
+		return nil, err
+	}
+	analyticsRetention, err := envInt("ANALYTICS_RETENTION_DAYS", 30)
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := &Config{}
 	flags := flag.NewFlagSet("dogelytics", flag.ContinueOnError)
@@ -122,6 +137,9 @@ func Load(args []string) (*Config, error) {
 	flags.StringVar(&cfg.CorsOrigin, "cors", env("CORS", "*"), "CORS allowed origin (env: CORS)")
 	flags.StringVar(&cfg.PublicURL, "public-url", env("PUBLIC_URL", ""), "Public HTTPS origin used for cookies and CSRF checks (env: PUBLIC_URL)")
 	flags.StringVar(&cfg.TrustedProxies, "trusted-proxies", env("TRUSTED_PROXIES", ""), "Comma-separated trusted proxy IPs or CIDRs (env: TRUSTED_PROXIES)")
+	flags.BoolVar(&cfg.EnableAnalytics, "enable-analytics", enableAnalytics, "Enable privacy-preserving request analytics (env: ENABLE_ANALYTICS)")
+	flags.StringVar(&cfg.AnalyticsSecret, "analytics-secret", analyticsSecret, "Analytics HMAC secret (env: ANALYTICS_SECRET or ANALYTICS_SECRET_FILE)")
+	flags.IntVar(&cfg.AnalyticsRetention, "analytics-retention-days", analyticsRetention, "Recent analytics retention in days (env: ANALYTICS_RETENTION_DAYS)")
 	flags.IntVar(&cfg.RateLimit, "ratelimit", rateLimit, "Maximum requests per IP per minute (env: RATELIMIT)")
 	flags.IntVar(&cfg.APIKeyRateLimit, "apikey-ratelimit", apiKeyRateLimit, "Maximum requests per API key per minute (env: API_KEY_RATELIMIT)")
 	flags.StringVar(&cfg.SessionSecret, "session-secret", sessionSecret, "Session HMAC secret (env: SESSION_SECRET or SESSION_SECRET_FILE)")
@@ -186,6 +204,14 @@ func (cfg *Config) Validate() error {
 	}
 	if cfg.MaxKeysPerUser < 1 {
 		return errors.New("MAX_KEYS_PER_USER must be at least 1")
+	}
+	if cfg.EnableAnalytics {
+		if len(cfg.AnalyticsSecret) < 32 {
+			return errors.New("ANALYTICS_SECRET must be at least 32 characters when ENABLE_ANALYTICS=true")
+		}
+		if cfg.AnalyticsRetention < 1 {
+			return errors.New("ANALYTICS_RETENTION_DAYS must be at least 1")
+		}
 	}
 	if err := validatePort("ADMIN_UI_PORT", cfg.AdminUIPort); err != nil {
 		return err

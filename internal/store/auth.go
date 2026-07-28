@@ -266,19 +266,6 @@ func (s *Store) GetExpiredAPIKeys(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-// LogRequest logs an API request
-func (s *Store) LogRequest(ctx context.Context, clientIP string, apiKey string, walletAddress string, success bool) error {
-	query := `
-		INSERT INTO dogelytics_request_logs (client_ip, api_key, wallet_address, success)
-		VALUES ($1, $2, $3, $4)
-	`
-	_, err := s.db.ExecContext(ctx, query, clientIP, apiKey, walletAddress, success)
-	if err != nil {
-		return fmt.Errorf("log request: %w", err)
-	}
-	return nil
-}
-
 // UsageStats holds usage statistics for a time period
 type UsageStats struct {
 	WalletsChecked int `json:"wallets_checked"`
@@ -320,13 +307,15 @@ func (s *Store) GetUsageStats(ctx context.Context, hours int, filterType string,
 			argIdx++
 		}
 		whereClause += fmt.Sprintf(" AND api_key IN (%s)", strings.Join(placeholders, ","))
+	} else if filterType == "keys" {
+		whereClause += " AND false"
 	}
 
 	// Specific time period
 	query = fmt.Sprintf(`
 		SELECT 
 			COUNT(*) as wallets_checked,
-			COUNT(DISTINCT client_ip) as unique_ips,
+			COUNT(DISTINCT client_fingerprint) as unique_ips,
 			COUNT(DISTINCT api_key) FILTER (WHERE api_key IS NOT NULL AND api_key != '') as unique_keys
 		FROM dogelytics_request_logs
 		%s
@@ -346,23 +335,11 @@ func (s *Store) GetUsageStats(ctx context.Context, hours int, filterType string,
 func (s *Store) GetDashboardStats(ctx context.Context) (DashboardStats, error) {
 	const query = `
 		SELECT
-			COUNT(*) FILTER (WHERE success = true) AS total_wallets_checked,
-			COUNT(*) FILTER (
-				WHERE success = true
-				AND timestamp >= now() - interval '24 hours'
-			) AS wallets_checked_last_24h,
-			COUNT(DISTINCT wallet_address) FILTER (
-				WHERE success = true
-				AND wallet_address IS NOT NULL
-				AND wallet_address != ''
-			) AS unique_wallets_checked,
-			COUNT(DISTINCT wallet_address) FILTER (
-				WHERE success = true
-				AND timestamp >= now() - interval '24 hours'
-				AND wallet_address IS NOT NULL
-				AND wallet_address != ''
-			) AS unique_wallets_last_24h
-		FROM dogelytics_request_logs
+			(SELECT successful_requests FROM dogelytics_analytics_totals WHERE id = 1),
+			(SELECT COUNT(*) FROM dogelytics_request_logs WHERE success = true AND timestamp >= now() - interval '24 hours'),
+			(SELECT COUNT(*) FROM dogelytics_analytics_wallets),
+			(SELECT COUNT(DISTINCT wallet_fingerprint) FROM dogelytics_request_logs
+			 WHERE success = true AND timestamp >= now() - interval '24 hours' AND wallet_fingerprint IS NOT NULL)
 	`
 
 	var stats DashboardStats
@@ -401,6 +378,9 @@ func (s *Store) GetUsageTimeSeries(ctx context.Context, hours int, filterType st
 	default:
 		interval = "1 hour"
 	}
+	if s.analyticsRetention > 0 && time.Duration(hours)*time.Hour > s.analyticsRetention {
+		return s.getUsageTimeSeriesRollup(ctx, hours, interval, filterType, filterValues)
+	}
 
 	// Build time series query
 	additionalFilter := ""
@@ -419,6 +399,8 @@ func (s *Store) GetUsageTimeSeries(ctx context.Context, hours int, filterType st
 			argIdx++
 		}
 		additionalFilter = fmt.Sprintf("AND r.api_key IN (%s)", strings.Join(placeholders, ","))
+	} else if filterType == "keys" {
+		additionalFilter = "AND false"
 	}
 
 	query = fmt.Sprintf(`
@@ -432,7 +414,7 @@ func (s *Store) GetUsageTimeSeries(ctx context.Context, hours int, filterType st
 		SELECT 
 			ts.time_bucket,
 			COALESCE(COUNT(r.*), 0) as wallets_checked,
-			COALESCE(COUNT(DISTINCT r.client_ip), 0) as unique_ips,
+			COALESCE(COUNT(DISTINCT r.client_fingerprint), 0) as unique_ips,
 			COALESCE(COUNT(DISTINCT r.api_key) FILTER (WHERE r.api_key IS NOT NULL AND r.api_key != ''), 0) as unique_keys
 		FROM time_series ts
 		LEFT JOIN dogelytics_request_logs r 
@@ -462,5 +444,60 @@ func (s *Store) GetUsageTimeSeries(ctx context.Context, hours int, filterType st
 		return nil, fmt.Errorf("time series rows error: %w", err)
 	}
 
+	return points, nil
+}
+
+func (s *Store) getUsageTimeSeriesRollup(ctx context.Context, hours int, interval string, filterType string, filterValues []string) ([]TimeSeriesPoint, error) {
+	args := []interface{}{hours}
+	filter := ""
+	if filterType == "keys" && len(filterValues) > 0 {
+		placeholders := make([]string, len(filterValues))
+		for i, value := range filterValues {
+			placeholders[i] = fmt.Sprintf("$%d", i+2)
+			args = append(args, value)
+		}
+		filter = fmt.Sprintf("AND h.api_key IN (%s)", strings.Join(placeholders, ","))
+	} else if filterType == "keys" {
+		filter = "AND false"
+	}
+
+	query := fmt.Sprintf(`
+		WITH time_series AS (
+			SELECT generate_series(
+				date_trunc('hour', now() - interval '1 hour' * $1),
+				now(),
+				interval '%s'
+			) AS time_bucket
+		)
+		SELECT
+			ts.time_bucket,
+			COALESCE(SUM(h.successful_requests), 0),
+			0,
+			COALESCE(COUNT(DISTINCT NULLIF(h.api_key, '')), 0)
+		FROM time_series ts
+		LEFT JOIN dogelytics_analytics_hourly h
+			ON h.bucket >= ts.time_bucket
+			AND h.bucket < ts.time_bucket + interval '%s'
+			%s
+		GROUP BY ts.time_bucket
+		ORDER BY ts.time_bucket ASC
+	`, interval, interval, filter)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get rolled-up usage time series: %w", err)
+	}
+	defer rows.Close()
+	var points []TimeSeriesPoint
+	for rows.Next() {
+		var point TimeSeriesPoint
+		if err := rows.Scan(&point.Timestamp, &point.WalletsChecked, &point.UniqueIPs, &point.UniqueKeys); err != nil {
+			return nil, fmt.Errorf("scan rolled-up time series: %w", err)
+		}
+		points = append(points, point)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rolled-up time series rows: %w", err)
+	}
 	return points, nil
 }

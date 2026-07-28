@@ -51,9 +51,7 @@ func (s *Server) usageQuery(r *http.Request) (int, string, []string) {
 			keys, err := s.authStore.GetAPIKeysByUserID(r.Context(), user.ID)
 			if err == nil {
 				for _, key := range keys {
-					if !key.RevokedAt.Valid {
-						filterValues = append(filterValues, key.KID)
-					}
+					filterValues = append(filterValues, key.KID)
 				}
 			}
 		}

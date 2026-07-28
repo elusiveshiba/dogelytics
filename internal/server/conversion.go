@@ -18,8 +18,15 @@ const conversionCacheMaxAge = time.Hour
 
 // ConversionStore defines the cache operations needed for currency conversion rates.
 type ConversionStore interface {
+	GetConversionRate(ctx context.Context, currency string) (store.ConversionRate, bool, error)
 	GetFreshConversionRate(ctx context.Context, currency string, maxAge time.Duration) (store.ConversionRate, bool, error)
 	UpsertConversionRate(ctx context.Context, currency string, rate string, fetchedAt time.Time, coingeckoUpdatedAt *time.Time) (store.ConversionRate, error)
+}
+
+type conversionRefresh struct {
+	done chan struct{}
+	rate store.ConversionRate
+	err  error
 }
 
 // HandleConversion responds with a cached or refreshed DOGE conversion rate.
@@ -64,29 +71,56 @@ func (s *Server) HandleConversion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	quote, err := s.conversionClient.GetRate(r.Context(), currency)
+	refreshedRate, err := s.refreshConversionRate(r.Context(), currency)
 	if err != nil {
 		if errors.Is(err, ErrUnsupportedCurrency) {
 			s.sendError(w, http.StatusBadRequest, "unsupported-currency", "Unsupported currency code")
+			return
+		}
+		staleRate, staleFound, staleErr := s.conversionStore.GetConversionRate(r.Context(), currency)
+		if staleErr == nil && staleFound {
+			s.sendJSON(w, http.StatusOK, conversionResponseFromStaleCache(staleRate))
 			return
 		}
 		s.sendError(w, http.StatusBadGateway, "conversion-source-error", "Failed to fetch conversion rate")
 		return
 	}
 
-	refreshedRate, err := s.conversionStore.UpsertConversionRate(
-		r.Context(),
-		quote.Currency,
-		quote.Rate,
-		time.Now().UTC(),
-		quote.CoinGeckoUpdatedAt,
-	)
-	if err != nil {
-		s.sendError(w, http.StatusServiceUnavailable, "conversion-cache-unavailable", "Conversion cache is unavailable")
-		return
-	}
-
 	s.sendJSON(w, http.StatusOK, conversionResponseFromQuote(refreshedRate))
+}
+
+func (s *Server) refreshConversionRate(ctx context.Context, currency string) (store.ConversionRate, error) {
+	s.conversionMu.Lock()
+	if existing := s.conversionFlight[currency]; existing != nil {
+		s.conversionMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return store.ConversionRate{}, ctx.Err()
+		case <-existing.done:
+			return existing.rate, existing.err
+		}
+	}
+	flight := &conversionRefresh{done: make(chan struct{})}
+	s.conversionFlight[currency] = flight
+	s.conversionMu.Unlock()
+
+	quote, err := s.conversionClient.GetRate(ctx, currency)
+	if err == nil {
+		flight.rate, err = s.conversionStore.UpsertConversionRate(
+			ctx,
+			quote.Currency,
+			quote.Rate,
+			time.Now().UTC(),
+			quote.CoinGeckoUpdatedAt,
+		)
+	}
+	flight.err = err
+
+	s.conversionMu.Lock()
+	delete(s.conversionFlight, currency)
+	close(flight.done)
+	s.conversionMu.Unlock()
+	return flight.rate, flight.err
 }
 
 func normaliseConversionCurrency(raw string) (string, string, string) {
@@ -119,6 +153,12 @@ func conversionResponseFromCache(rate store.ConversionRate) config.ConversionRes
 		FetchedAt:          rate.FetchedAt,
 		CoinGeckoUpdatedAt: rate.CoinGeckoUpdatedAt,
 	}
+}
+
+func conversionResponseFromStaleCache(rate store.ConversionRate) config.ConversionResponse {
+	response := conversionResponseFromCache(rate)
+	response.Source = "stale-cache"
+	return response
 }
 
 func conversionResponseFromQuote(rate store.ConversionRate) config.ConversionResponse {

@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dogeorg/dogelytics/internal/store"
@@ -20,6 +21,8 @@ const (
 	sessionCookieName = "dgl_sess"
 	sessionTTL        = 7 * 24 * time.Hour
 )
+
+var parsedTemplates sync.Map
 
 // generateID returns a URL-safe random ID string with n random bytes
 func generateID(n int) (string, error) {
@@ -136,11 +139,23 @@ func parseInt64(s string) (int64, error) {
 	return x, err
 }
 
-// renderTemplate renders a minimal HTML template with provided data
+// renderTemplate renders a cached HTML template with provided data.
 func renderTemplate(w http.ResponseWriter, tmpl string, data any) {
-	t := template.Must(template.New("page").Parse(tmpl))
+	renderNamedTemplate(w, "page", tmpl, data)
+}
+
+func renderNamedTemplate(w http.ResponseWriter, name, source string, data any) {
+	cacheKey := name + "\x00" + source
+	cached, ok := parsedTemplates.Load(cacheKey)
+	if !ok {
+		parsed := template.Must(template.New(name).Parse(source))
+		cached, _ = parsedTemplates.LoadOrStore(cacheKey, parsed)
+	}
+	t := cached.(*template.Template)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = t.Execute(w, data)
+	if err := t.Execute(w, data); err != nil {
+		log.Printf("[Dogelytics][web] render template %q: %v", name, err)
+	}
 }
 
 // HandleGETIndex shows a landing page (login form)

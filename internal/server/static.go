@@ -1,23 +1,17 @@
 package server
 
 import (
+	"bytes"
+	"io/fs"
+	"mime"
 	"net/http"
-	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"time"
+
+	assets "github.com/dogeorg/dogelytics/img"
 )
-
-var faviconDirs = []string{
-	"img/favicons",
-	"../../img/favicons",
-	"/app/img/favicons",
-}
-
-var imageDirs = []string{
-	"img",
-	"../../img",
-	"/app/img",
-}
 
 func registerFaviconRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/favicon.ico", serveFaviconFile("favicon.ico"))
@@ -42,15 +36,7 @@ func serveFaviconPath(w http.ResponseWriter, r *http.Request) {
 
 func serveFaviconFile(name string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		for _, dir := range faviconDirs {
-			path := filepath.Join(dir, name)
-			if info, err := os.Stat(path); err == nil && !info.IsDir() {
-				http.ServeFile(w, r, path)
-				return
-			}
-		}
-
-		http.NotFound(w, r)
+		serveEmbeddedAsset(w, r, path.Join("favicons", name))
 	}
 }
 
@@ -61,15 +47,20 @@ func serveImagePath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, dir := range imageDirs {
-		path := filepath.Join(dir, name)
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			http.ServeFile(w, r, path)
-			return
-		}
-	}
+	serveEmbeddedAsset(w, r, name)
+}
 
-	http.NotFound(w, r)
+func serveEmbeddedAsset(w http.ResponseWriter, r *http.Request, name string) {
+	data, err := fs.ReadFile(assets.Files, name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if contentType := mime.TypeByExtension(filepath.Ext(name)); contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	}
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	http.ServeContent(w, r, path.Base(name), time.Time{}, bytes.NewReader(data))
 }
 
 func safeImageName(name string) bool {

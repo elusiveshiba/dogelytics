@@ -16,6 +16,16 @@ type ConversionRate struct {
 	CoinGeckoUpdatedAt *time.Time
 }
 
+// GetConversionRate returns the most recently cached rate regardless of age.
+func (s *Store) GetConversionRate(ctx context.Context, currency string) (ConversionRate, bool, error) {
+	const query = `
+		SELECT currency, rate, coingecko_updated_at, fetched_at
+		FROM dogelytics_conversion_rates
+		WHERE currency = $1
+	`
+	return s.scanConversionRate(ctx, query, strings.ToLower(strings.TrimSpace(currency)))
+}
+
 // GetFreshConversionRate returns a cached rate when it is newer than maxAge.
 func (s *Store) GetFreshConversionRate(ctx context.Context, currency string, maxAge time.Duration) (ConversionRate, bool, error) {
 	const query = `
@@ -28,9 +38,13 @@ func (s *Store) GetFreshConversionRate(ctx context.Context, currency string, max
 	normalisedCurrency := strings.ToLower(strings.TrimSpace(currency))
 	threshold := time.Now().Add(-maxAge)
 
+	return s.scanConversionRate(ctx, query, normalisedCurrency, threshold)
+}
+
+func (s *Store) scanConversionRate(ctx context.Context, query string, args ...any) (ConversionRate, bool, error) {
 	var rate ConversionRate
 	var coingeckoUpdatedAt sql.NullTime
-	err := s.db.QueryRowContext(ctx, query, normalisedCurrency, threshold).Scan(
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(
 		&rate.Currency,
 		&rate.Rate,
 		&coingeckoUpdatedAt,
@@ -40,7 +54,7 @@ func (s *Store) GetFreshConversionRate(ctx context.Context, currency string, max
 		return ConversionRate{}, false, nil
 	}
 	if err != nil {
-		return ConversionRate{}, false, fmt.Errorf("get fresh conversion rate: %w", err)
+		return ConversionRate{}, false, fmt.Errorf("get conversion rate: %w", err)
 	}
 	if coingeckoUpdatedAt.Valid {
 		rate.CoinGeckoUpdatedAt = &coingeckoUpdatedAt.Time

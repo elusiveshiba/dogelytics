@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"sync"
 
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
@@ -30,6 +31,8 @@ type Server struct {
 	ipLimiter        *RateLimiter
 	apiLimiter       *RateLimiter
 	authLimiter      *RateLimiter
+	conversionMu     sync.Mutex
+	conversionFlight map[string]*conversionRefresh
 }
 
 // NewServer creates a new Server instance.
@@ -44,6 +47,7 @@ func NewServer(indexerStore BalanceStore, syncSource SyncSource, authStore *stor
 		ipLimiter:        ipLimiter,
 		apiLimiter:       apiLimiter,
 		authLimiter:      NewRateLimiter(10),
+		conversionFlight: make(map[string]*conversionRefresh),
 	}
 }
 

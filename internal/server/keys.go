@@ -1,7 +1,6 @@
 package server
 
 import (
-	"html/template"
 	"net/http"
 	"sort"
 	"strings"
@@ -71,7 +70,7 @@ func (s *Server) HandleGETKeys(w http.ResponseWriter, r *http.Request) {
 		ActiveCount:    activeCount,
 		CanCreateMore:  activeCount < s.config.MaxKeysPerUser,
 	}
-	t := template.Must(template.New("keys").Parse(htmlHeader + `
+	templateSource := htmlHeader + `
 <style>
 .stats-widget {
   background: #c0c0c0;
@@ -642,9 +641,8 @@ window.addEventListener('beforeunload', () => {
 });
 </script>
 
-` + htmlFooter))
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = t.Execute(w, data)
+` + htmlFooter
+	renderNamedTemplate(w, "keys", templateSource, data)
 }
 
 // HandlePOSTCreateKey creates a new key and shows the token once
@@ -722,7 +720,7 @@ func (s *Server) HandlePOSTCreateKey(w http.ResponseWriter, r *http.Request) {
 	}
 	token := "dglk_" + kid + "." + secret
 	// Show once page
-	t := template.Must(template.New("created").Parse(htmlHeader + `
+	templateSource := htmlHeader + `
 <h2>API Key Created Successfully</h2>
 
 <div class="alert success">
@@ -807,9 +805,8 @@ curl -H "Authorization: Bearer {{.Token}}" \
     });
   })();
 </script>
-` + htmlFooter))
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = t.Execute(w, struct{ Token string }{Token: token})
+` + htmlFooter
+	renderNamedTemplate(w, "created", templateSource, struct{ Token string }{Token: token})
 }
 
 // HandlePOSTRevokeKey revokes a key

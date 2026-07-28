@@ -47,6 +47,9 @@ type fakeConversionStore struct {
 	getRate                  store.ConversionRate
 	getFound                 bool
 	getErr                   error
+	staleRate                store.ConversionRate
+	staleFound               bool
+	staleErr                 error
 	upsertRate               store.ConversionRate
 	upsertErr                error
 	getCalls                 int
@@ -57,6 +60,10 @@ type fakeConversionStore struct {
 	lastUpsertRate           string
 	lastUpsertFetchedAt      time.Time
 	lastUpsertCoinGeckoStamp *time.Time
+}
+
+func (f *fakeConversionStore) GetConversionRate(_ context.Context, _ string) (store.ConversionRate, bool, error) {
+	return f.staleRate, f.staleFound, f.staleErr
 }
 
 func (f *fakeConversionStore) GetFreshConversionRate(_ context.Context, currency string, maxAge time.Duration) (store.ConversionRate, bool, error) {
@@ -392,6 +399,36 @@ func TestHandleConversionUpstreamFailure(t *testing.T) {
 	}
 	if resp.Error != "conversion-source-error" {
 		t.Fatalf("unexpected error response: %+v", resp)
+	}
+}
+
+func TestHandleConversionFallsBackToStaleCache(t *testing.T) {
+	cachedAt := time.Now().UTC().Add(-2 * time.Hour)
+	cache := &fakeConversionStore{
+		staleFound: true,
+		staleRate: store.ConversionRate{
+			Currency:  "usd",
+			Rate:      "0.21",
+			FetchedAt: cachedAt,
+		},
+	}
+	client := &fakeConversionClient{err: errors.New("boom")}
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = cache
+	srv.conversionClient = client
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=usd", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected stale-cache response, got %d", rec.Code)
+	}
+	var resp config.ConversionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode stale response: %v", err)
+	}
+	if resp.Source != "stale-cache" || !resp.Cached || resp.Rate != "0.21" {
+		t.Fatalf("unexpected stale response: %+v", resp)
 	}
 }
 

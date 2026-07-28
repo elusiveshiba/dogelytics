@@ -1,0 +1,10 @@
+services:
+  dogelytics:
+    networks:
+      - dogelytics
+      - indexer
+
+networks:
+  indexer:
+    name: ${INDEXER_DOCKER_NETWORK:?Set INDEXER_DOCKER_NETWORK to the existing indexer network}
+    external: true

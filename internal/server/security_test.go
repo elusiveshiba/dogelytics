@@ -32,6 +32,20 @@ func TestCSRFProtectionRejectsCrossOriginPosts(t *testing.T) {
 	}
 }
 
+func TestSecurityHeadersPermitUICDNDependencies(t *testing.T) {
+	srv := &Server{config: &config.Config{}}
+	handler := srv.securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	policy := recorder.Header().Get("Content-Security-Policy")
+	if !strings.Contains(policy, "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net") {
+		t.Fatalf("UI script source is not permitted by CSP: %q", policy)
+	}
+}
+
 func TestTrustedProxyControlsForwardedClientIP(t *testing.T) {
 	srv := &Server{config: &config.Config{TrustedProxies: "10.0.0.0/8"}}
 	request := httptest.NewRequest(http.MethodGet, "/", nil)

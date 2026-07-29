@@ -44,6 +44,12 @@ func runServer(args []string) error {
 	if indexerClient == nil {
 		return errors.New("INDEXER_API_URL is required")
 	}
+	startupContext, cancelStartup := context.WithTimeout(ctx, 5*time.Second)
+	startupErr := checkIndexerDependency(startupContext, indexerClient)
+	cancelStartup()
+	if startupErr != nil {
+		return startupErr
+	}
 
 	authStore, err := openAuthStore(ctx, cfg)
 	if err != nil {
@@ -93,6 +99,16 @@ func runServer(args []string) error {
 	}
 
 	return runHTTPServers(ctx, servers)
+}
+
+func checkIndexerDependency(ctx context.Context, syncSource server.SyncSource) error {
+	if syncSource == nil {
+		return errors.New("indexer dependency is unavailable")
+	}
+	if _, err := syncSource.SyncHeights(ctx); err != nil {
+		return fmt.Errorf("connect to indexer: %w", err)
+	}
+	return nil
 }
 
 func newHTTPServer(address string, handler http.Handler) *http.Server {

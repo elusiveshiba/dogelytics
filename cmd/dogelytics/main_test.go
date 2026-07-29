@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dogeorg/dogelytics/internal/indexer"
 )
 
 func TestNewHTTPServerAppliesTimeouts(t *testing.T) {
@@ -16,6 +20,19 @@ func TestNewHTTPServerAppliesTimeouts(t *testing.T) {
 	}
 	if server.WriteTimeout != 30*time.Second || server.IdleTimeout != 60*time.Second {
 		t.Fatalf("unexpected write/idle timeouts: write=%v idle=%v", server.WriteTimeout, server.IdleTimeout)
+	}
+}
+
+type failingSyncSource struct{}
+
+func (failingSyncSource) SyncHeights(context.Context) (indexer.SyncHeights, error) {
+	return indexer.SyncHeights{}, errors.New("connection refused")
+}
+
+func TestCheckIndexerDependencyRejectsUnavailableIndexer(t *testing.T) {
+	err := checkIndexerDependency(context.Background(), failingSyncSource{})
+	if err == nil || !strings.Contains(err.Error(), "connect to indexer") {
+		t.Fatalf("expected indexer startup error, got %v", err)
 	}
 }
 

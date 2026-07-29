@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
+
+const maxIndexerResponseBytes = 1 << 20
 
 // SyncHeights describes the indexer-owned sync heights exposed over HTTP.
 type SyncHeights struct {
@@ -60,7 +64,7 @@ func (c *SyncClient) SyncHeights(ctx context.Context) (SyncHeights, error) {
 		CoreHeadersHeight *int64     `json:"core_headers_height"`
 		CoreSyncUpdatedAt *time.Time `json:"core_sync_updated_at"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := decodeBoundedJSON(resp.Body, &payload); err != nil {
 		return SyncHeights{}, fmt.Errorf("decode indexer sync heights: %w", err)
 	}
 
@@ -70,4 +74,48 @@ func (c *SyncClient) SyncHeights(ctx context.Context) (SyncHeights, error) {
 		CoreHeadersHeight: payload.CoreHeadersHeight,
 		CoreSyncUpdatedAt: payload.CoreSyncUpdatedAt,
 	}, nil
+}
+
+func (c *SyncClient) GetBalance(ctx context.Context, address string) (Balance, error) {
+	reqURL := c.baseURL + "/balance?address=" + url.QueryEscape(address)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return Balance{}, fmt.Errorf("create indexer balance request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return Balance{}, fmt.Errorf("request indexer balance: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return Balance{}, fmt.Errorf("indexer balance returned status %d", resp.StatusCode)
+	}
+
+	var balance Balance
+	if err := decodeBoundedJSON(resp.Body, &balance); err != nil {
+		return Balance{}, fmt.Errorf("decode indexer balance: %w", err)
+	}
+
+	return balance, nil
+}
+
+func decodeBoundedJSON(body io.Reader, destination any) error {
+	data, err := io.ReadAll(io.LimitReader(body, maxIndexerResponseBytes+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > maxIndexerResponseBytes {
+		return fmt.Errorf("response exceeds %d bytes", maxIndexerResponseBytes)
+	}
+	return json.Unmarshal(data, destination)
+}
+
+func (c *SyncClient) CurrentHeight(ctx context.Context) (int64, error) {
+	heights, err := c.SyncHeights(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return heights.IndexerHeight, nil
 }

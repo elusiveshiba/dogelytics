@@ -1,23 +1,83 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/dogeorg/dogelytics/internal/config"
+	"github.com/dogeorg/dogelytics/internal/indexer"
 )
 
-func TestValidateUIConfig(t *testing.T) {
-	t.Run("admin ui requires session secret", func(t *testing.T) {
-		err := validateUIConfig(&config.Config{EnableAdminUI: true})
-		if err == nil {
-			t.Fatal("expected error when admin UI is enabled without a session secret")
-		}
-	})
+func TestNewHTTPServerAppliesTimeouts(t *testing.T) {
+	server := newHTTPServer("127.0.0.1:4420", http.NotFoundHandler())
+	if server.ReadHeaderTimeout != 5*time.Second || server.ReadTimeout != 15*time.Second {
+		t.Fatalf("unexpected read timeouts: header=%v request=%v", server.ReadHeaderTimeout, server.ReadTimeout)
+	}
+	if server.WriteTimeout != 30*time.Second || server.IdleTimeout != 60*time.Second {
+		t.Fatalf("unexpected write/idle timeouts: write=%v idle=%v", server.WriteTimeout, server.IdleTimeout)
+	}
+}
 
-	t.Run("dashboard ui does not require session secret", func(t *testing.T) {
-		err := validateUIConfig(&config.Config{EnableDashboardUI: true})
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-	})
+type failingSyncSource struct{}
+
+func (failingSyncSource) SyncHeights(context.Context) (indexer.SyncHeights, error) {
+	return indexer.SyncHeights{}, errors.New("connection refused")
+}
+
+func TestCheckIndexerDependencyRejectsUnavailableIndexer(t *testing.T) {
+	err := checkIndexerDependency(context.Background(), failingSyncSource{})
+	if err == nil || !strings.Contains(err.Error(), "connect to indexer") {
+		t.Fatalf("expected indexer startup error, got %v", err)
+	}
+}
+
+func TestVersionCommand(t *testing.T) {
+	var output bytes.Buffer
+	if err := run([]string{"version"}, strings.NewReader(""), &output, &bytes.Buffer{}); err != nil {
+		t.Fatalf("version command: %v", err)
+	}
+	if !strings.Contains(output.String(), "dogelytics dev") {
+		t.Fatalf("unexpected version output: %q", output.String())
+	}
+}
+
+func TestHealthcheckCommand(t *testing.T) {
+	previousClient := healthcheckClient
+	healthcheckClient = &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader("ready")),
+			Header:     make(http.Header),
+		}, nil
+	})}
+	t.Cleanup(func() { healthcheckClient = previousClient })
+	var output bytes.Buffer
+	if err := run([]string{"healthcheck", "--url", "http://dogelytics.test/readyz"}, strings.NewReader(""), &output, &bytes.Buffer{}); err != nil {
+		t.Fatalf("healthcheck command: %v", err)
+	}
+	if output.String() != "ready\n" {
+		t.Fatalf("unexpected healthcheck output: %q", output.String())
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func TestReadPasswordFromStandardInput(t *testing.T) {
+	password, err := readPassword(strings.NewReader("correct horse battery staple\n"), &bytes.Buffer{}, true)
+	if err != nil {
+		t.Fatalf("read password: %v", err)
+	}
+	if password != "correct horse battery staple" {
+		t.Fatalf("unexpected password value: %q", password)
+	}
 }

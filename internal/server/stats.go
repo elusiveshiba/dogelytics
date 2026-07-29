@@ -13,7 +13,7 @@ func (s *Server) HandleUsageStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hours, filterType, filterValues := s.usageQuery(r)
-	stats, err := s.authStore.GetUsageStats(hours, filterType, filterValues)
+	stats, err := s.authStore.GetUsageStats(r.Context(), hours, filterType, filterValues)
 	if err != nil {
 		log.Printf("[Dogelytics] Error getting usage stats: %v", err)
 		http.Error(w, "failed to get stats", http.StatusInternalServerError)
@@ -31,7 +31,7 @@ func (s *Server) HandleUsageTimeSeries(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hours, filterType, filterValues := s.usageQuery(r)
-	series, err := s.authStore.GetUsageTimeSeries(hours, filterType, filterValues)
+	series, err := s.authStore.GetUsageTimeSeries(r.Context(), hours, filterType, filterValues)
 	if err != nil {
 		log.Printf("[Dogelytics] Error getting usage time series: %v", err)
 		http.Error(w, "failed to get time series", http.StatusInternalServerError)
@@ -48,12 +48,10 @@ func (s *Server) usageQuery(r *http.Request) (int, string, []string) {
 	var filterValues []string
 	if filterType == "keys" {
 		if user, ok := s.getUserFromRequest(r); ok {
-			keys, err := s.authStore.GetAPIKeysByUserID(user.ID)
+			keys, err := s.authStore.GetAPIKeysByUserID(r.Context(), user.ID)
 			if err == nil {
 				for _, key := range keys {
-					if !key.RevokedAt.Valid {
-						filterValues = append(filterValues, key.KID)
-					}
+					filterValues = append(filterValues, key.KID)
 				}
 			}
 		}

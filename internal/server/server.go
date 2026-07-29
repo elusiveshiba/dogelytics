@@ -2,8 +2,8 @@ package server
 
 import (
 	"context"
+	"sync"
 
-	"github.com/dogeorg/doge"
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
 	"github.com/dogeorg/dogelytics/internal/store"
@@ -11,7 +11,7 @@ import (
 
 // BalanceStore defines the indexer operations needed by the HTTP API.
 type BalanceStore interface {
-	GetBalance(ctx context.Context, scriptType doge.ScriptType, address []byte, confirmations int64) (indexer.Balance, error)
+	GetBalance(ctx context.Context, address string) (indexer.Balance, error)
 	CurrentHeight(ctx context.Context) (int64, error)
 }
 
@@ -30,6 +30,9 @@ type Server struct {
 	config           *config.Config
 	ipLimiter        *RateLimiter
 	apiLimiter       *RateLimiter
+	authLimiter      *RateLimiter
+	conversionMu     sync.Mutex
+	conversionFlight map[string]*conversionRefresh
 }
 
 // NewServer creates a new Server instance.
@@ -43,6 +46,8 @@ func NewServer(indexerStore BalanceStore, syncSource SyncSource, authStore *stor
 		config:           cfg,
 		ipLimiter:        ipLimiter,
 		apiLimiter:       apiLimiter,
+		authLimiter:      NewRateLimiter(10),
+		conversionFlight: make(map[string]*conversionRefresh),
 	}
 }
 

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -20,27 +23,33 @@ import (
 	"github.com/dogeorg/dogelytics/internal/store"
 )
 
+var dogeboxMetricsClient = &http.Client{Timeout: 10 * time.Second}
+
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
+func runServer(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	cfg := config.ParseConfig()
-
-	indexerStore, err := indexer.NewStore(ctx, cfg.IndexerDbURL)
+	cfg, err := config.Load(args)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if closeErr := indexerStore.Close(); closeErr != nil {
-			log.Printf("close indexer database: %v", closeErr)
-		}
-	}()
+
+	indexerClient := indexer.NewSyncClient(cfg.IndexerAPIURL, nil)
+	if indexerClient == nil {
+		return errors.New("INDEXER_API_URL is required")
+	}
+	startupContext, cancelStartup := context.WithTimeout(ctx, 5*time.Second)
+	startupErr := checkIndexerDependency(startupContext, indexerClient)
+	cancelStartup()
+	if startupErr != nil {
+		return startupErr
+	}
 
 	authStore, err := openAuthStore(ctx, cfg)
 	if err != nil {
@@ -54,13 +63,14 @@ func run() error {
 		}()
 	}
 
-	if err := validateUIConfig(cfg); err != nil {
-		return err
+	if authStore != nil {
+		startMetricsReporter(ctx, authStore)
+		startAnalyticsMaintenance(ctx, authStore)
 	}
 
 	srv := server.NewServer(
-		indexerStore,
-		indexer.NewSyncClient(cfg.IndexerAPIURL, nil),
+		indexerClient,
+		indexerClient,
 		authStore,
 		cfg,
 		server.NewRateLimiter(cfg.RateLimit),
@@ -69,35 +79,113 @@ func run() error {
 
 	servers := []namedHTTPServer{
 		{
-			name: "api",
-			server: &http.Server{
-				Addr:    cfg.BindAddr,
-				Handler: srv.APIHandler(),
-			},
+			name:   "api",
+			server: newHTTPServer(cfg.BindAddr, srv.APIHandler()),
 		},
 	}
 
 	if cfg.EnableAdminUI {
 		servers = append(servers, namedHTTPServer{
-			name: "admin-ui",
-			server: &http.Server{
-				Addr:    listenerAddrForPort(cfg.BindAddr, cfg.AdminUIPort),
-				Handler: srv.AdminHandler(),
-			},
+			name:   "admin-ui",
+			server: newHTTPServer(listenerAddrForPort(cfg.BindAddr, cfg.AdminUIPort), srv.AdminHandler()),
 		})
 	}
 
 	if cfg.EnableDashboardUI {
 		servers = append(servers, namedHTTPServer{
-			name: "dashboard-ui",
-			server: &http.Server{
-				Addr:    listenerAddrForPort(cfg.BindAddr, cfg.DashboardUIPort),
-				Handler: srv.DashboardHandler(),
-			},
+			name:   "dashboard-ui",
+			server: newHTTPServer(listenerAddrForPort(cfg.BindAddr, cfg.DashboardUIPort), srv.DashboardHandler()),
 		})
 	}
 
 	return runHTTPServers(ctx, servers)
+}
+
+func checkIndexerDependency(ctx context.Context, syncSource server.SyncSource) error {
+	if syncSource == nil {
+		return errors.New("indexer dependency is unavailable")
+	}
+	if _, err := syncSource.SyncHeights(ctx); err != nil {
+		return fmt.Errorf("connect to indexer: %w", err)
+	}
+	return nil
+}
+
+func newHTTPServer(address string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+}
+
+func startMetricsReporter(ctx context.Context, authStore *store.Store) {
+	host := os.Getenv("DBX_HOST")
+	port := os.Getenv("DBX_PORT")
+	if host == "" || port == "" {
+		return
+	}
+
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			submitDogeboxMetrics(ctx, authStore, host, port)
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
+func submitDogeboxMetrics(ctx context.Context, authStore *store.Store, host string, port string) {
+	stats, err := authStore.GetDashboardStats(ctx)
+	if err != nil {
+		log.Printf("Dogelytics metrics unavailable: %v", err)
+		return
+	}
+
+	metrics := map[string]map[string]int{
+		"total_wallets_checked": {
+			"value": stats.TotalWalletsChecked,
+		},
+		"wallets_checked_last_24h": {
+			"value": stats.WalletsCheckedLast24h,
+		},
+		"unique_wallets_checked": {
+			"value": stats.UniqueWalletsChecked,
+		},
+		"unique_wallets_last_24h": {
+			"value": stats.UniqueWalletsLast24h,
+		},
+	}
+
+	data, err := json.Marshal(metrics)
+	if err != nil {
+		log.Printf("Marshal Dogelytics metrics: %v", err)
+		return
+	}
+
+	url := fmt.Sprintf("http://%s:%s/dbx/metrics", host, port)
+	resp, err := dogeboxMetricsClient.Post(url, "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		log.Printf("Submit Dogelytics metrics: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("Dogelytics metrics returned status %d: %s", resp.StatusCode, string(body))
+	}
 }
 
 type namedHTTPServer struct {
@@ -111,48 +199,39 @@ type serverResult struct {
 }
 
 func openAuthStore(ctx context.Context, cfg *config.Config) (*store.Store, error) {
-	if cfg.DogelyticsDbURL == "" {
-		if cfg.EnableAdminUI {
-			return nil, errors.New("DOGELYTICS_DBURL is required when ENABLE_ADMIN_UI=true")
-		}
-		return nil, nil
-	}
-
 	authStore, err := store.NewStore(cfg.DogelyticsDbURL, ctx)
 	if err != nil {
-		if cfg.EnableAdminUI {
-			return nil, err
-		}
-		log.Printf("Dogelytics auth store unavailable, continuing without auth-backed features: %v", err)
-		return nil, nil
+		return nil, err
 	}
-
-	if err := authStore.EnsureAuthSchema(); err != nil {
-		if cfg.EnableAdminUI {
-			return nil, err
-		}
-		log.Printf("Dogelytics auth schema unavailable, continuing without auth-backed features: %v", err)
+	if err := authStore.Migrate(ctx); err != nil {
 		_ = authStore.Close()
-		return nil, nil
+		return nil, err
 	}
-	if err := authStore.EnsureRequestLogsSchema(); err != nil {
-		if cfg.EnableAdminUI {
+	if cfg.EnableAnalytics {
+		authStore.ConfigureAnalytics(cfg.AnalyticsSecret, cfg.AnalyticsRetention)
+		if err := authStore.MigrateLegacyAnalytics(ctx); err != nil {
+			_ = authStore.Close()
 			return nil, err
 		}
-		log.Printf("Dogelytics request log schema unavailable, continuing without auth-backed features: %v", err)
-		_ = authStore.Close()
-		return nil, nil
 	}
-	if err := authStore.EnsureConversionRatesSchema(); err != nil {
-		if cfg.EnableAdminUI {
-			return nil, err
-		}
-		log.Printf("Dogelytics conversion cache schema unavailable, continuing without auth-backed features: %v", err)
-		_ = authStore.Close()
-		return nil, nil
-	}
-
 	return authStore, nil
+}
+
+func startAnalyticsMaintenance(ctx context.Context, authStore *store.Store) {
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			if err := authStore.PurgeExpiredAnalytics(ctx); err != nil && ctx.Err() == nil {
+				log.Printf("Purge expired analytics: %v", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 }
 
 func runHTTPServers(ctx context.Context, servers []namedHTTPServer) error {
@@ -212,12 +291,4 @@ func listenerAddrForPort(bindAddr string, port int) string {
 	}
 
 	return net.JoinHostPort(host, strconv.Itoa(port))
-}
-
-func validateUIConfig(cfg *config.Config) error {
-	if cfg.EnableAdminUI && cfg.SessionSecret == "" {
-		return errors.New("SESSION_SECRET is required when ENABLE_ADMIN_UI=true")
-	}
-
-	return nil
 }

@@ -11,11 +11,14 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) APIHandler() http.Handler {
 	mux := http.NewServeMux()
 	registerImageRoutes(mux)
+	mux.HandleFunc("/openapi.yaml", s.HandleOpenAPI)
+	mux.HandleFunc("/livez", s.HandleLiveness)
+	mux.HandleFunc("/readyz", s.HandleReadiness)
 	mux.HandleFunc("/health", s.HandleHealth)
 	mux.HandleFunc("/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleBalance)))
 	mux.HandleFunc("/conversion", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleConversion)))
 
-	return mux
+	return s.securityHeaders(mux)
 }
 
 // AdminHandler returns the admin UI handler.
@@ -25,11 +28,11 @@ func (s *Server) AdminHandler() http.Handler {
 	mux.HandleFunc("/", s.HandleGETIndex)
 	mux.HandleFunc("/login", methodHandler(map[string]http.HandlerFunc{
 		http.MethodGet:  s.HandleGETLogin,
-		http.MethodPost: s.HandlePOSTLogin,
+		http.MethodPost: s.AuthRateLimitMiddleware(s.HandlePOSTLogin),
 	}))
 	mux.HandleFunc("/register", methodHandler(map[string]http.HandlerFunc{
 		http.MethodGet:  s.HandleGETRegister,
-		http.MethodPost: s.HandlePOSTRegister,
+		http.MethodPost: s.AuthRateLimitMiddleware(s.HandlePOSTRegister),
 	}))
 	mux.HandleFunc("/logout", methodHandler(map[string]http.HandlerFunc{
 		http.MethodPost: s.HandlePOSTLogout,
@@ -46,7 +49,7 @@ func (s *Server) AdminHandler() http.Handler {
 	})))
 	mux.HandleFunc("/api/stats/usage", s.RequireLogin(s.HandleUsageStats))
 	mux.HandleFunc("/api/stats/timeseries", s.RequireLogin(s.HandleUsageTimeSeries))
-	return mux
+	return s.securityHeaders(s.csrfProtection(mux))
 }
 
 // DashboardHandler returns the public dashboard UI handler.
@@ -54,12 +57,13 @@ func (s *Server) DashboardHandler() http.Handler {
 	mux := http.NewServeMux()
 	registerFaviconRoutes(mux)
 	registerImageRoutes(mux)
+	mux.HandleFunc("/openapi.yaml", s.HandleOpenAPI)
 	mux.HandleFunc("/docs", s.HandleGETDocs)
 	mux.HandleFunc("/", s.HandleGETDashboard)
 	mux.HandleFunc("/api/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardBalance)))
 	mux.HandleFunc("/api/conversion", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleConversion)))
 	mux.HandleFunc("/api/dashboard-stats", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardStats)))
-	return mux
+	return s.securityHeaders(mux)
 }
 
 func methodHandler(handlers map[string]http.HandlerFunc) http.HandlerFunc {

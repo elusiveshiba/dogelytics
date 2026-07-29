@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -25,44 +26,21 @@ type APIKey struct {
 	RevokedAt  sql.NullTime
 }
 
-// EnsureAuthSchema creates auth-related tables if they do not exist
-func (s *Store) EnsureAuthSchema() error {
-	schema := `
-		CREATE TABLE IF NOT EXISTS dogelytics_users (
-			id TEXT PRIMARY KEY,
-			email TEXT UNIQUE NOT NULL,
-			password_hash TEXT NOT NULL,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-		);
-		CREATE TABLE IF NOT EXISTS dogelytics_api_keys (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL REFERENCES dogelytics_users(id) ON DELETE CASCADE,
-			kid TEXT UNIQUE NOT NULL,
-			secret_hash TEXT NOT NULL,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			expires_at TIMESTAMPTZ,
-			revoked_at TIMESTAMPTZ
-		);
-		CREATE INDEX IF NOT EXISTS idx_dgl_users_email ON dogelytics_users(email);
-		CREATE INDEX IF NOT EXISTS idx_dgl_apikeys_user_id ON dogelytics_api_keys(user_id);
-		CREATE INDEX IF NOT EXISTS idx_dgl_apikeys_expires_at ON dogelytics_api_keys(expires_at);
-	`
-	_, err := s.db.ExecContext(s.ctx, schema)
-	if err != nil {
-		return fmt.Errorf("ensure auth schema: %w", err)
-	}
-	return nil
+// APIKeyWithEmail is an administrative API-key listing row.
+type APIKeyWithEmail struct {
+	APIKey
+	Email string
 }
 
 // CreateUser inserts a new user with email and password hash
-func (s *Store) CreateUser(id string, email string, passwordHash string) (User, error) {
+func (s *Store) CreateUser(ctx context.Context, id string, email string, passwordHash string) (User, error) {
 	query := `
 		INSERT INTO dogelytics_users (id, email, password_hash)
 		VALUES ($1, $2, $3)
 		RETURNING id, email, created_at
 	`
 	var u User
-	err := s.db.QueryRowContext(s.ctx, query, id, email, passwordHash).
+	err := s.db.QueryRowContext(ctx, query, id, email, passwordHash).
 		Scan(&u.ID, &u.Email, &u.CreatedAt)
 	if err != nil {
 		return User{}, fmt.Errorf("create user: %w", err)
@@ -71,7 +49,7 @@ func (s *Store) CreateUser(id string, email string, passwordHash string) (User, 
 }
 
 // GetUserByEmail fetches a user for login
-func (s *Store) GetUserByEmail(email string) (User, string, error) {
+func (s *Store) GetUserByEmail(ctx context.Context, email string) (User, string, error) {
 	query := `
 		SELECT id, email, password_hash, created_at
 		FROM dogelytics_users
@@ -79,7 +57,7 @@ func (s *Store) GetUserByEmail(email string) (User, string, error) {
 	`
 	var u User
 	var hash string
-	err := s.db.QueryRowContext(s.ctx, query, email).
+	err := s.db.QueryRowContext(ctx, query, email).
 		Scan(&u.ID, &u.Email, &hash, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return User{}, "", nil
@@ -91,14 +69,14 @@ func (s *Store) GetUserByEmail(email string) (User, string, error) {
 }
 
 // GetUserByID returns a user by id
-func (s *Store) GetUserByID(id string) (User, error) {
+func (s *Store) GetUserByID(ctx context.Context, id string) (User, error) {
 	query := `
 		SELECT id, email, created_at
 		FROM dogelytics_users
 		WHERE id = $1
 	`
 	var u User
-	err := s.db.QueryRowContext(s.ctx, query, id).
+	err := s.db.QueryRowContext(ctx, query, id).
 		Scan(&u.ID, &u.Email, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return User{}, nil
@@ -109,8 +87,29 @@ func (s *Store) GetUserByID(id string) (User, error) {
 	return u, nil
 }
 
+// ListUsers returns all users in stable creation order.
+func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, email, created_at FROM dogelytics_users ORDER BY created_at, email`)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer rows.Close()
+	var users []User
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Email, &user.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list users rows: %w", err)
+	}
+	return users, nil
+}
+
 // CreateAPIKey inserts a new API key record
-func (s *Store) CreateAPIKey(id string, userID string, kid string, secretHash string, expiresAt *time.Time) (APIKey, error) {
+func (s *Store) CreateAPIKey(ctx context.Context, id string, userID string, kid string, secretHash string, expiresAt *time.Time) (APIKey, error) {
 	query := `
 		INSERT INTO dogelytics_api_keys (id, user_id, kid, secret_hash, expires_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -121,7 +120,7 @@ func (s *Store) CreateAPIKey(id string, userID string, kid string, secretHash st
 	if expiresAt != nil {
 		exp = sql.NullTime{Time: *expiresAt, Valid: true}
 	}
-	err := s.db.QueryRowContext(s.ctx, query, id, userID, kid, secretHash, exp).
+	err := s.db.QueryRowContext(ctx, query, id, userID, kid, secretHash, exp).
 		Scan(&k.ID, &k.UserID, &k.KID, &k.SecretHash, &k.CreatedAt, &k.ExpiresAt, &k.RevokedAt)
 	if err != nil {
 		return APIKey{}, fmt.Errorf("create api key: %w", err)
@@ -130,14 +129,14 @@ func (s *Store) CreateAPIKey(id string, userID string, kid string, secretHash st
 }
 
 // GetAPIKeysByUserID lists keys for a user
-func (s *Store) GetAPIKeysByUserID(userID string) ([]APIKey, error) {
+func (s *Store) GetAPIKeysByUserID(ctx context.Context, userID string) ([]APIKey, error) {
 	query := `
 		SELECT id, user_id, kid, secret_hash, created_at, expires_at, revoked_at
 		FROM dogelytics_api_keys
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 	`
-	rows, err := s.db.QueryContext(s.ctx, query, userID)
+	rows, err := s.db.QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list api keys: %w", err)
 	}
@@ -157,15 +156,47 @@ func (s *Store) GetAPIKeysByUserID(userID string) ([]APIKey, error) {
 	return keys, nil
 }
 
+// ListAPIKeys returns keys across users, optionally restricted to one email address.
+func (s *Store) ListAPIKeys(ctx context.Context, email string) ([]APIKeyWithEmail, error) {
+	query := `
+		SELECT k.id, k.user_id, k.kid, k.secret_hash, k.created_at, k.expires_at, k.revoked_at, u.email
+		FROM dogelytics_api_keys k
+		JOIN dogelytics_users u ON u.id = k.user_id
+	`
+	var args []any
+	if email != "" {
+		query += " WHERE u.email = $1"
+		args = append(args, email)
+	}
+	query += " ORDER BY k.created_at, k.kid"
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list administrative api keys: %w", err)
+	}
+	defer rows.Close()
+	var keys []APIKeyWithEmail
+	for rows.Next() {
+		var key APIKeyWithEmail
+		if err := rows.Scan(&key.ID, &key.UserID, &key.KID, &key.SecretHash, &key.CreatedAt, &key.ExpiresAt, &key.RevokedAt, &key.Email); err != nil {
+			return nil, fmt.Errorf("scan administrative api key: %w", err)
+		}
+		keys = append(keys, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list administrative api keys rows: %w", err)
+	}
+	return keys, nil
+}
+
 // GetAPIKeyByKID fetches a key for auth
-func (s *Store) GetAPIKeyByKID(kid string) (APIKey, error) {
+func (s *Store) GetAPIKeyByKID(ctx context.Context, kid string) (APIKey, error) {
 	query := `
 		SELECT id, user_id, kid, secret_hash, created_at, expires_at, revoked_at
 		FROM dogelytics_api_keys
 		WHERE kid = $1
 	`
 	var k APIKey
-	err := s.db.QueryRowContext(s.ctx, query, kid).
+	err := s.db.QueryRowContext(ctx, query, kid).
 		Scan(&k.ID, &k.UserID, &k.KID, &k.SecretHash, &k.CreatedAt, &k.ExpiresAt, &k.RevokedAt)
 	if err == sql.ErrNoRows {
 		return APIKey{}, nil
@@ -176,14 +207,27 @@ func (s *Store) GetAPIKeyByKID(kid string) (APIKey, error) {
 	return k, nil
 }
 
+// UpdateAPIKeySecretHash replaces an API key hash if it has not changed since it was read.
+func (s *Store) UpdateAPIKeySecretHash(ctx context.Context, kid, previousHash, replacementHash string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE dogelytics_api_keys
+		SET secret_hash = $1
+		WHERE kid = $2 AND secret_hash = $3
+	`, replacementHash, kid, previousHash)
+	if err != nil {
+		return fmt.Errorf("update api key secret hash: %w", err)
+	}
+	return nil
+}
+
 // RevokeAPIKey soft-deletes a key
-func (s *Store) RevokeAPIKey(userID string, kid string, revokedAt time.Time) error {
+func (s *Store) RevokeAPIKey(ctx context.Context, userID string, kid string, revokedAt time.Time) error {
 	query := `
 		UPDATE dogelytics_api_keys
 		SET revoked_at = $1
 		WHERE user_id = $2 AND kid = $3 AND revoked_at IS NULL
 	`
-	res, err := s.db.ExecContext(s.ctx, query, revokedAt, userID, kid)
+	res, err := s.db.ExecContext(ctx, query, revokedAt, userID, kid)
 	if err != nil {
 		return fmt.Errorf("revoke api key: %w", err)
 	}
@@ -191,8 +235,24 @@ func (s *Store) RevokeAPIKey(userID string, kid string, revokedAt time.Time) err
 	return nil
 }
 
+// RevokeAPIKeyByKID revokes an active key for administrative use.
+func (s *Store) RevokeAPIKeyByKID(ctx context.Context, kid string, revokedAt time.Time) (bool, error) {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE dogelytics_api_keys SET revoked_at = $1
+		WHERE kid = $2 AND revoked_at IS NULL
+	`, revokedAt, kid)
+	if err != nil {
+		return false, fmt.Errorf("revoke api key by kid: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("count revoked api keys: %w", err)
+	}
+	return count == 1, nil
+}
+
 // UpdateAPIKeyExpiry sets the expiry for a key
-func (s *Store) UpdateAPIKeyExpiry(userID string, kid string, expiresAt *time.Time) error {
+func (s *Store) UpdateAPIKeyExpiry(ctx context.Context, userID string, kid string, expiresAt *time.Time) error {
 	var (
 		query string
 		args  []interface{}
@@ -212,7 +272,7 @@ func (s *Store) UpdateAPIKeyExpiry(userID string, kid string, expiresAt *time.Ti
 		`
 		args = []interface{}{*expiresAt, userID, kid}
 	}
-	_, err := s.db.ExecContext(s.ctx, query, args...)
+	_, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("update api key expiry: %w", err)
 	}
@@ -220,9 +280,9 @@ func (s *Store) UpdateAPIKeyExpiry(userID string, kid string, expiresAt *time.Ti
 }
 
 // GetTotalUsers returns the total number of registered users
-func (s *Store) GetTotalUsers() (int, error) {
+func (s *Store) GetTotalUsers(ctx context.Context) (int, error) {
 	var count int
-	err := s.db.QueryRowContext(s.ctx, "SELECT COUNT(*) FROM dogelytics_users").Scan(&count)
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM dogelytics_users").Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("get total users: %w", err)
 	}
@@ -230,9 +290,9 @@ func (s *Store) GetTotalUsers() (int, error) {
 }
 
 // GetTotalAPIKeys returns the total number of API keys (including revoked/expired)
-func (s *Store) GetTotalAPIKeys() (int, error) {
+func (s *Store) GetTotalAPIKeys(ctx context.Context) (int, error) {
 	var count int
-	err := s.db.QueryRowContext(s.ctx, "SELECT COUNT(*) FROM dogelytics_api_keys").Scan(&count)
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM dogelytics_api_keys").Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("get total api keys: %w", err)
 	}
@@ -240,14 +300,14 @@ func (s *Store) GetTotalAPIKeys() (int, error) {
 }
 
 // GetActiveAPIKeys returns the number of active API keys (not revoked and not expired)
-func (s *Store) GetActiveAPIKeys() (int, error) {
+func (s *Store) GetActiveAPIKeys(ctx context.Context) (int, error) {
 	query := `
 		SELECT COUNT(*) FROM dogelytics_api_keys
 		WHERE revoked_at IS NULL
 		AND (expires_at IS NULL OR expires_at > now())
 	`
 	var count int
-	err := s.db.QueryRowContext(s.ctx, query).Scan(&count)
+	err := s.db.QueryRowContext(ctx, query).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("get active api keys: %w", err)
 	}
@@ -255,10 +315,10 @@ func (s *Store) GetActiveAPIKeys() (int, error) {
 }
 
 // GetRevokedAPIKeys returns the number of revoked API keys
-func (s *Store) GetRevokedAPIKeys() (int, error) {
+func (s *Store) GetRevokedAPIKeys(ctx context.Context) (int, error) {
 	query := `SELECT COUNT(*) FROM dogelytics_api_keys WHERE revoked_at IS NOT NULL`
 	var count int
-	err := s.db.QueryRowContext(s.ctx, query).Scan(&count)
+	err := s.db.QueryRowContext(ctx, query).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("get revoked api keys: %w", err)
 	}
@@ -266,7 +326,7 @@ func (s *Store) GetRevokedAPIKeys() (int, error) {
 }
 
 // GetExpiredAPIKeys returns the number of expired API keys (not revoked but expired)
-func (s *Store) GetExpiredAPIKeys() (int, error) {
+func (s *Store) GetExpiredAPIKeys(ctx context.Context) (int, error) {
 	query := `
 		SELECT COUNT(*) FROM dogelytics_api_keys
 		WHERE revoked_at IS NULL
@@ -274,46 +334,11 @@ func (s *Store) GetExpiredAPIKeys() (int, error) {
 		AND expires_at <= now()
 	`
 	var count int
-	err := s.db.QueryRowContext(s.ctx, query).Scan(&count)
+	err := s.db.QueryRowContext(ctx, query).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("get expired api keys: %w", err)
 	}
 	return count, nil
-}
-
-// EnsureRequestLogsSchema creates the request logs table if it doesn't exist
-func (s *Store) EnsureRequestLogsSchema() error {
-	schema := `
-		CREATE TABLE IF NOT EXISTS dogelytics_request_logs (
-			id SERIAL PRIMARY KEY,
-			timestamp TIMESTAMPTZ NOT NULL DEFAULT now(),
-			client_ip TEXT NOT NULL,
-			api_key TEXT,
-			wallet_address TEXT,
-			success BOOLEAN NOT NULL DEFAULT true
-		);
-		CREATE INDEX IF NOT EXISTS idx_dgl_request_logs_timestamp ON dogelytics_request_logs(timestamp);
-		CREATE INDEX IF NOT EXISTS idx_dgl_request_logs_client_ip ON dogelytics_request_logs(client_ip);
-		CREATE INDEX IF NOT EXISTS idx_dgl_request_logs_api_key ON dogelytics_request_logs(api_key);
-	`
-	_, err := s.db.ExecContext(s.ctx, schema)
-	if err != nil {
-		return fmt.Errorf("ensure request logs schema: %w", err)
-	}
-	return nil
-}
-
-// LogRequest logs an API request
-func (s *Store) LogRequest(clientIP string, apiKey string, walletAddress string, success bool) error {
-	query := `
-		INSERT INTO dogelytics_request_logs (client_ip, api_key, wallet_address, success)
-		VALUES ($1, $2, $3, $4)
-	`
-	_, err := s.db.ExecContext(s.ctx, query, clientIP, apiKey, walletAddress, success)
-	if err != nil {
-		return fmt.Errorf("log request: %w", err)
-	}
-	return nil
 }
 
 // UsageStats holds usage statistics for a time period
@@ -340,7 +365,7 @@ type TimeSeriesPoint struct {
 }
 
 // GetUsageStats returns usage statistics for a given time period
-func (s *Store) GetUsageStats(hours int, filterType string, filterValues []string) (UsageStats, error) {
+func (s *Store) GetUsageStats(ctx context.Context, hours int, filterType string, filterValues []string) (UsageStats, error) {
 	var stats UsageStats
 	var query string
 	var args []interface{}
@@ -357,13 +382,15 @@ func (s *Store) GetUsageStats(hours int, filterType string, filterValues []strin
 			argIdx++
 		}
 		whereClause += fmt.Sprintf(" AND api_key IN (%s)", strings.Join(placeholders, ","))
+	} else if filterType == "keys" {
+		whereClause += " AND false"
 	}
 
 	// Specific time period
 	query = fmt.Sprintf(`
 		SELECT 
 			COUNT(*) as wallets_checked,
-			COUNT(DISTINCT client_ip) as unique_ips,
+			COUNT(DISTINCT client_fingerprint) as unique_ips,
 			COUNT(DISTINCT api_key) FILTER (WHERE api_key IS NOT NULL AND api_key != '') as unique_keys
 		FROM dogelytics_request_logs
 		%s
@@ -371,7 +398,7 @@ func (s *Store) GetUsageStats(hours int, filterType string, filterValues []strin
 	`, whereClause, argIdx)
 	args = append(args, hours)
 
-	err := s.db.QueryRowContext(s.ctx, query, args...).Scan(&stats.WalletsChecked, &stats.UniqueIPs, &stats.UniqueKeys)
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&stats.WalletsChecked, &stats.UniqueIPs, &stats.UniqueKeys)
 	if err != nil {
 		return stats, fmt.Errorf("get usage stats: %w", err)
 	}
@@ -380,30 +407,18 @@ func (s *Store) GetUsageStats(hours int, filterType string, filterValues []strin
 }
 
 // GetDashboardStats returns the public dashboard summary metrics.
-func (s *Store) GetDashboardStats() (DashboardStats, error) {
+func (s *Store) GetDashboardStats(ctx context.Context) (DashboardStats, error) {
 	const query = `
 		SELECT
-			COUNT(*) FILTER (WHERE success = true) AS total_wallets_checked,
-			COUNT(*) FILTER (
-				WHERE success = true
-				AND timestamp >= now() - interval '24 hours'
-			) AS wallets_checked_last_24h,
-			COUNT(DISTINCT wallet_address) FILTER (
-				WHERE success = true
-				AND wallet_address IS NOT NULL
-				AND wallet_address != ''
-			) AS unique_wallets_checked,
-			COUNT(DISTINCT wallet_address) FILTER (
-				WHERE success = true
-				AND timestamp >= now() - interval '24 hours'
-				AND wallet_address IS NOT NULL
-				AND wallet_address != ''
-			) AS unique_wallets_last_24h
-		FROM dogelytics_request_logs
+			(SELECT successful_requests FROM dogelytics_analytics_totals WHERE id = 1),
+			(SELECT COUNT(*) FROM dogelytics_request_logs WHERE success = true AND timestamp >= now() - interval '24 hours'),
+			(SELECT COUNT(*) FROM dogelytics_analytics_wallets),
+			(SELECT COUNT(DISTINCT wallet_fingerprint) FROM dogelytics_request_logs
+			 WHERE success = true AND timestamp >= now() - interval '24 hours' AND wallet_fingerprint IS NOT NULL)
 	`
 
 	var stats DashboardStats
-	err := s.db.QueryRowContext(s.ctx, query).Scan(
+	err := s.db.QueryRowContext(ctx, query).Scan(
 		&stats.TotalWalletsChecked,
 		&stats.WalletsCheckedLast24h,
 		&stats.UniqueWalletsChecked,
@@ -417,7 +432,7 @@ func (s *Store) GetDashboardStats() (DashboardStats, error) {
 }
 
 // GetUsageTimeSeries returns time-series data for charts
-func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []string) ([]TimeSeriesPoint, error) {
+func (s *Store) GetUsageTimeSeries(ctx context.Context, hours int, filterType string, filterValues []string) ([]TimeSeriesPoint, error) {
 	var points []TimeSeriesPoint
 	var query string
 	var args []interface{}
@@ -438,6 +453,9 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 	default:
 		interval = "1 hour"
 	}
+	if s.analyticsRetention > 0 && time.Duration(hours)*time.Hour > s.analyticsRetention {
+		return s.getUsageTimeSeriesRollup(ctx, hours, interval, filterType, filterValues)
+	}
 
 	// Build time series query
 	additionalFilter := ""
@@ -456,6 +474,8 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 			argIdx++
 		}
 		additionalFilter = fmt.Sprintf("AND r.api_key IN (%s)", strings.Join(placeholders, ","))
+	} else if filterType == "keys" {
+		additionalFilter = "AND false"
 	}
 
 	query = fmt.Sprintf(`
@@ -469,7 +489,7 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 		SELECT 
 			ts.time_bucket,
 			COALESCE(COUNT(r.*), 0) as wallets_checked,
-			COALESCE(COUNT(DISTINCT r.client_ip), 0) as unique_ips,
+			COALESCE(COUNT(DISTINCT r.client_fingerprint), 0) as unique_ips,
 			COALESCE(COUNT(DISTINCT r.api_key) FILTER (WHERE r.api_key IS NOT NULL AND r.api_key != ''), 0) as unique_keys
 		FROM time_series ts
 		LEFT JOIN dogelytics_request_logs r 
@@ -481,7 +501,7 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 		ORDER BY ts.time_bucket ASC
 	`, interval, interval, additionalFilter)
 
-	rows, err := s.db.QueryContext(s.ctx, query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get usage time series: %w", err)
 	}
@@ -499,5 +519,60 @@ func (s *Store) GetUsageTimeSeries(hours int, filterType string, filterValues []
 		return nil, fmt.Errorf("time series rows error: %w", err)
 	}
 
+	return points, nil
+}
+
+func (s *Store) getUsageTimeSeriesRollup(ctx context.Context, hours int, interval string, filterType string, filterValues []string) ([]TimeSeriesPoint, error) {
+	args := []interface{}{hours}
+	filter := ""
+	if filterType == "keys" && len(filterValues) > 0 {
+		placeholders := make([]string, len(filterValues))
+		for i, value := range filterValues {
+			placeholders[i] = fmt.Sprintf("$%d", i+2)
+			args = append(args, value)
+		}
+		filter = fmt.Sprintf("AND h.api_key IN (%s)", strings.Join(placeholders, ","))
+	} else if filterType == "keys" {
+		filter = "AND false"
+	}
+
+	query := fmt.Sprintf(`
+		WITH time_series AS (
+			SELECT generate_series(
+				date_trunc('hour', now() - interval '1 hour' * $1),
+				now(),
+				interval '%s'
+			) AS time_bucket
+		)
+		SELECT
+			ts.time_bucket,
+			COALESCE(SUM(h.successful_requests), 0),
+			0,
+			COALESCE(COUNT(DISTINCT NULLIF(h.api_key, '')), 0)
+		FROM time_series ts
+		LEFT JOIN dogelytics_analytics_hourly h
+			ON h.bucket >= ts.time_bucket
+			AND h.bucket < ts.time_bucket + interval '%s'
+			%s
+		GROUP BY ts.time_bucket
+		ORDER BY ts.time_bucket ASC
+	`, interval, interval, filter)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get rolled-up usage time series: %w", err)
+	}
+	defer rows.Close()
+	var points []TimeSeriesPoint
+	for rows.Next() {
+		var point TimeSeriesPoint
+		if err := rows.Scan(&point.Timestamp, &point.WalletsChecked, &point.UniqueIPs, &point.UniqueKeys); err != nil {
+			return nil, fmt.Errorf("scan rolled-up time series: %w", err)
+		}
+		points = append(points, point)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rolled-up time series rows: %w", err)
+	}
 	return points, nil
 }

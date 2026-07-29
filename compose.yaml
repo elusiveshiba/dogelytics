@@ -1,0 +1,92 @@
+name: dogelytics
+
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dogelytics
+      POSTGRES_USER: dogelytics
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dogelytics
+
+  dogelytics:
+    image: dogelytics:local
+    build:
+      context: .
+      args:
+        VERSION: ${DOGELYTICS_VERSION:-v0.1.0}
+        COMMIT: ${DOGELYTICS_COMMIT:-local}
+        BUILD_DATE: ${DOGELYTICS_BUILD_DATE:-local}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "65532:65532"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    environment:
+      BIND: 0.0.0.0:4420
+      INDEXER_API_URL: ${INDEXER_API_URL:-http://host.docker.internal:8000}
+      DOGELYTICS_DBURL_FILE: /run/secrets/database_url
+      SESSION_SECRET_FILE: /run/secrets/session_secret
+      ANALYTICS_SECRET_FILE: /run/secrets/analytics_secret
+      ANALYTICS_RETENTION_DAYS: ${ANALYTICS_RETENTION_DAYS:-30}
+      ENABLE_ANALYTICS: ${ENABLE_ANALYTICS:-true}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      CORS: ${CORS:-*}
+      RATELIMIT: ${RATELIMIT:-10}
+      API_KEY_RATELIMIT: ${API_KEY_RATELIMIT:-120}
+      MAX_KEYS_PER_USER: ${MAX_KEYS_PER_USER:-1}
+      ENABLE_ADMIN_UI: ${ENABLE_ADMIN_UI:-true}
+      ADMIN_UI_PORT: 4421
+      ENABLE_DASHBOARD_UI: ${ENABLE_DASHBOARD_UI:-true}
+      DASHBOARD_UI_PORT: 4422
+      ENABLE_DASHBOARD_TIPS: ${ENABLE_DASHBOARD_TIPS:-true}
+      DASHBOARD_TIPS_ADDRESS: ${DASHBOARD_TIPS_ADDRESS:-DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz}
+      ENABLE_SIGNUPS: ${ENABLE_SIGNUPS:-false}
+    secrets:
+      - database_url
+      - session_secret
+      - analytics_secret
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${DOGELYTICS_HOST:-127.0.0.1}:4420:4420"
+      - "${DOGELYTICS_HOST:-127.0.0.1}:4421:4421"
+      - "${DOGELYTICS_HOST:-127.0.0.1}:4422:4422"
+    networks:
+      - dogelytics
+
+volumes:
+  postgres-data:
+
+networks:
+  dogelytics:
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  database_url:
+    file: ./secrets/database_url
+  session_secret:
+    file: ./secrets/session_secret
+  analytics_secret:
+    file: ./secrets/analytics_secret

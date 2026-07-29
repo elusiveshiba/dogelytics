@@ -6,11 +6,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/dogeorg/doge"
-	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
 	"github.com/dogeorg/dogelytics/internal/store"
@@ -21,8 +20,7 @@ type fakeBalanceStore struct {
 	heightErr   error
 	balance     indexer.Balance
 	balanceErr  error
-	lastScript  doge.ScriptType
-	lastAddress []byte
+	lastAddress string
 }
 
 type fakeSyncSource struct {
@@ -30,9 +28,8 @@ type fakeSyncSource struct {
 	err         error
 }
 
-func (f *fakeBalanceStore) GetBalance(_ context.Context, scriptType doge.ScriptType, address []byte, _ int64) (indexer.Balance, error) {
-	f.lastScript = scriptType
-	f.lastAddress = append([]byte(nil), address...)
+func (f *fakeBalanceStore) GetBalance(_ context.Context, address string) (indexer.Balance, error) {
+	f.lastAddress = address
 	return f.balance, f.balanceErr
 }
 
@@ -51,6 +48,9 @@ type fakeConversionStore struct {
 	getRate                  store.ConversionRate
 	getFound                 bool
 	getErr                   error
+	staleRate                store.ConversionRate
+	staleFound               bool
+	staleErr                 error
 	upsertRate               store.ConversionRate
 	upsertErr                error
 	getCalls                 int
@@ -61,6 +61,10 @@ type fakeConversionStore struct {
 	lastUpsertRate           string
 	lastUpsertFetchedAt      time.Time
 	lastUpsertCoinGeckoStamp *time.Time
+}
+
+func (f *fakeConversionStore) GetConversionRate(_ context.Context, _ string) (store.ConversionRate, bool, error) {
+	return f.staleRate, f.staleFound, f.staleErr
 }
 
 func (f *fakeConversionStore) GetFreshConversionRate(_ context.Context, currency string, maxAge time.Duration) (store.ConversionRate, bool, error) {
@@ -118,6 +122,22 @@ func TestHandlerRoutesAPIOnly(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpecificationIsServed(t *testing.T) {
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "application/yaml") {
+		t.Fatalf("unexpected content type: %q", contentType)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "openapi: 3.1.0") || !strings.Contains(body, "/balance:") {
+		t.Fatalf("unexpected OpenAPI body: %q", body)
+	}
+}
+
 func TestHandleHealthSuccess(t *testing.T) {
 	store := &fakeBalanceStore{height: 123}
 	srv := newTestServer(store, &config.Config{CorsOrigin: "*"})
@@ -168,8 +188,8 @@ func TestHandleHealthStoreError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", rec.Code)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
 	}
 }
 
@@ -208,13 +228,13 @@ func TestHandleBalanceInvalidAddress(t *testing.T) {
 func TestHandleBalanceSuccess(t *testing.T) {
 	store := &fakeBalanceStore{
 		balance: indexer.Balance{
-			Incoming:  koinu.Koinu(100),
-			Available: koinu.Koinu(200),
-			Outgoing:  koinu.Koinu(50),
-			Current:   koinu.Koinu(300),
+			Incoming:  "100",
+			Available: "200",
+			Outgoing:  "50",
+			Current:   "300",
 		},
 	}
-	srv := newTestServer(store, &config.Config{CorsOrigin: "*", Confirmations: 6})
+	srv := newTestServer(store, &config.Config{CorsOrigin: "*"})
 
 	req := httptest.NewRequest(http.MethodGet, "/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8", nil)
 	rec := httptest.NewRecorder()
@@ -223,18 +243,15 @@ func TestHandleBalanceSuccess(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if store.lastScript != doge.ScriptTypeP2PKH {
-		t.Fatalf("expected P2PKH script type, got %v", store.lastScript)
-	}
-	if len(store.lastAddress) != 20 {
-		t.Fatalf("expected 20-byte address hash, got %d bytes", len(store.lastAddress))
+	if store.lastAddress != "DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8" {
+		t.Fatalf("expected balance lookup address to be preserved, got %q", store.lastAddress)
 	}
 
 	var resp config.BalanceResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode balance response: %v", err)
 	}
-	if resp.Current != koinu.Koinu(300) {
+	if resp.Current != "300" {
 		t.Fatalf("unexpected current balance: %v", resp.Current)
 	}
 }
@@ -399,6 +416,36 @@ func TestHandleConversionUpstreamFailure(t *testing.T) {
 	}
 	if resp.Error != "conversion-source-error" {
 		t.Fatalf("unexpected error response: %+v", resp)
+	}
+}
+
+func TestHandleConversionFallsBackToStaleCache(t *testing.T) {
+	cachedAt := time.Now().UTC().Add(-2 * time.Hour)
+	cache := &fakeConversionStore{
+		staleFound: true,
+		staleRate: store.ConversionRate{
+			Currency:  "usd",
+			Rate:      "0.21",
+			FetchedAt: cachedAt,
+		},
+	}
+	client := &fakeConversionClient{err: errors.New("boom")}
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	srv.conversionStore = cache
+	srv.conversionClient = client
+
+	req := httptest.NewRequest(http.MethodGet, "/conversion?currency=usd", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected stale-cache response, got %d", rec.Code)
+	}
+	var resp config.ConversionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode stale response: %v", err)
+	}
+	if resp.Source != "stale-cache" || !resp.Cached || resp.Rate != "0.21" {
+		t.Fatalf("unexpected stale response: %+v", resp)
 	}
 }
 

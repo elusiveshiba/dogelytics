@@ -2,7 +2,6 @@ package server
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -10,8 +9,10 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/dogeorg/dogelytics/internal/credentials"
 	"github.com/dogeorg/dogelytics/internal/store"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -21,22 +22,16 @@ const (
 	sessionTTL        = 7 * 24 * time.Hour
 )
 
+var parsedTemplates sync.Map
+
 // generateID returns a URL-safe random ID string with n random bytes
 func generateID(n int) (string, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
+	return credentials.GenerateID(n)
 }
 
 // hashPassword hashes a plaintext password using bcrypt
 func hashPassword(password string) (string, error) {
-	h, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	if err != nil {
-		return "", err
-	}
-	return string(h), nil
+	return credentials.HashPassword(password)
 }
 
 // checkPassword compares a bcrypt hash with a plaintext password
@@ -60,10 +55,10 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, userID
 		return
 	}
 
-	// Only set Secure when request arrived over HTTPS (directly or via proxy).
-	secureCookie := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	secureCookie := s.requestIsHTTPS(r) || strings.HasPrefix(strings.ToLower(s.config.PublicURL), "https://")
 
-	exp := time.Now().Add(sessionTTL).Unix()
+	expiresAt := time.Now().Add(sessionTTL)
+	exp := expiresAt.Unix()
 	sig := signSession([]byte(s.config.SessionSecret), userID, exp)
 	val := fmt.Sprintf("%s|%d|%s", userID, exp, sig)
 	http.SetCookie(w, &http.Cookie{
@@ -73,12 +68,14 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, userID
 		HttpOnly: true,
 		Secure:   secureCookie,
 		SameSite: http.SameSiteLaxMode,
+		Expires:  expiresAt,
+		MaxAge:   int(sessionTTL.Seconds()),
 	})
 	log.Printf("[Dogelytics][auth] session cookie set for user_id=%s secure=%t", userID, secureCookie)
 }
 
 // clearSessionCookie removes the session cookie
-func clearSessionCookie(w http.ResponseWriter) {
+func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
@@ -86,6 +83,7 @@ func clearSessionCookie(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   s.requestIsHTTPS(r) || strings.HasPrefix(strings.ToLower(s.config.PublicURL), "https://"),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -133,11 +131,23 @@ func parseInt64(s string) (int64, error) {
 	return x, err
 }
 
-// renderTemplate renders a minimal HTML template with provided data
+// renderTemplate renders a cached HTML template with provided data.
 func renderTemplate(w http.ResponseWriter, tmpl string, data any) {
-	t := template.Must(template.New("page").Parse(tmpl))
+	renderNamedTemplate(w, "page", tmpl, data)
+}
+
+func renderNamedTemplate(w http.ResponseWriter, name, source string, data any) {
+	cacheKey := name + "\x00" + source
+	cached, ok := parsedTemplates.Load(cacheKey)
+	if !ok {
+		parsed := template.Must(template.New(name).Parse(source))
+		cached, _ = parsedTemplates.LoadOrStore(cacheKey, parsed)
+	}
+	t := cached.(*template.Template)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = t.Execute(w, data)
+	if err := t.Execute(w, data); err != nil {
+		log.Printf("[Dogelytics][web] render template %q: %v", name, err)
+	}
 }
 
 // HandleGETIndex shows a landing page (login form)
@@ -227,8 +237,8 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	if err := parseLimitedForm(w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	email := strings.TrimSpace(strings.ToLower(r.Form.Get("email")))
@@ -238,7 +248,7 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Check if exists
-	if existing, _, err := s.authStore.GetUserByEmail(email); err != nil {
+	if existing, _, err := s.authStore.GetUserByEmail(r.Context(), email); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	} else if existing.ID != "" {
@@ -256,7 +266,7 @@ func (s *Server) HandlePOSTRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	u, err := s.authStore.CreateUser(id, email, hash)
+	u, err := s.authStore.CreateUser(r.Context(), id, email, hash)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -274,9 +284,9 @@ func (s *Server) HandleGETLogin(w http.ResponseWriter, r *http.Request) {
 
 // HandlePOSTLogin authenticates a user
 func (s *Server) HandlePOSTLogin(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	if err := parseLimitedForm(w, r); err != nil {
 		log.Printf("[Dogelytics][auth] login failed: parse form error: %v", err)
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	email := strings.TrimSpace(strings.ToLower(r.Form.Get("email")))
@@ -286,7 +296,7 @@ func (s *Server) HandlePOSTLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid credentials", http.StatusBadRequest)
 		return
 	}
-	u, hash, err := s.authStore.GetUserByEmail(email)
+	u, hash, err := s.authStore.GetUserByEmail(r.Context(), email)
 	if err != nil {
 		log.Printf("[Dogelytics][auth] login failed for email=%s: store error: %v", email, err)
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -304,7 +314,7 @@ func (s *Server) HandlePOSTLogin(w http.ResponseWriter, r *http.Request) {
 
 // HandlePOSTLogout logs out the session
 func (s *Server) HandlePOSTLogout(w http.ResponseWriter, r *http.Request) {
-	clearSessionCookie(w)
+	s.clearSessionCookie(w, r)
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -327,7 +337,7 @@ func (s *Server) getUserFromRequest(r *http.Request) (store.User, bool) {
 	if !ok || uid == "" {
 		return store.User{}, false
 	}
-	u, err := s.authStore.GetUserByID(uid)
+	u, err := s.authStore.GetUserByID(r.Context(), uid)
 	if err != nil || u.ID == "" {
 		return store.User{}, false
 	}

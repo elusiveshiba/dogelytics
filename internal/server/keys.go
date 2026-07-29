@@ -1,13 +1,10 @@
 package server
 
 import (
-	"html/template"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 // HandleGETKeys shows the user's keys and management UI
@@ -17,7 +14,7 @@ func (s *Server) HandleGETKeys(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	keys, err := s.authStore.GetAPIKeysByUserID(u.ID)
+	keys, err := s.authStore.GetAPIKeysByUserID(r.Context(), u.ID)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -73,7 +70,7 @@ func (s *Server) HandleGETKeys(w http.ResponseWriter, r *http.Request) {
 		ActiveCount:    activeCount,
 		CanCreateMore:  activeCount < s.config.MaxKeysPerUser,
 	}
-	t := template.Must(template.New("keys").Parse(htmlHeader + `
+	templateSource := htmlHeader + `
 <style>
 .stats-widget {
   background: #c0c0c0;
@@ -644,9 +641,8 @@ window.addEventListener('beforeunload', () => {
 });
 </script>
 
-` + htmlFooter))
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = t.Execute(w, data)
+` + htmlFooter
+	renderNamedTemplate(w, "keys", templateSource, data)
 }
 
 // HandlePOSTCreateKey creates a new key and shows the token once
@@ -656,12 +652,12 @@ func (s *Server) HandlePOSTCreateKey(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	if err := parseLimitedForm(w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	// Enforce per-user limit
-	existing, err := s.authStore.GetAPIKeysByUserID(u.ID)
+	existing, err := s.authStore.GetAPIKeysByUserID(r.Context(), u.ID)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -712,24 +708,19 @@ func (s *Server) HandlePOSTCreateKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	secretHashBytes, err := bcrypt.GenerateFromPassword([]byte(secret), 12)
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	secretHash := string(secretHashBytes)
+	secretHash := hashAPIKeySecret(secret)
 	id, err := generateID(16)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	if _, err := s.authStore.CreateAPIKey(id, u.ID, kid, secretHash, expiresAt); err != nil {
+	if _, err := s.authStore.CreateAPIKey(r.Context(), id, u.ID, kid, secretHash, expiresAt); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	token := "dglk_" + kid + "." + secret
 	// Show once page
-	t := template.Must(template.New("created").Parse(htmlHeader + `
+	templateSource := htmlHeader + `
 <h2>API Key Created Successfully</h2>
 
 <div class="alert success">
@@ -814,9 +805,8 @@ curl -H "Authorization: Bearer {{.Token}}" \
     });
   })();
 </script>
-` + htmlFooter))
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = t.Execute(w, struct{ Token string }{Token: token})
+` + htmlFooter
+	renderNamedTemplate(w, "created", templateSource, struct{ Token string }{Token: token})
 }
 
 // HandlePOSTRevokeKey revokes a key
@@ -826,8 +816,8 @@ func (s *Server) HandlePOSTRevokeKey(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	if err := parseLimitedForm(w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	kid := strings.TrimSpace(r.Form.Get("kid"))
@@ -835,7 +825,7 @@ func (s *Server) HandlePOSTRevokeKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing kid", http.StatusBadRequest)
 		return
 	}
-	if err := s.authStore.RevokeAPIKey(u.ID, kid, time.Now()); err != nil {
+	if err := s.authStore.RevokeAPIKey(r.Context(), u.ID, kid, time.Now()); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
@@ -849,8 +839,8 @@ func (s *Server) HandlePOSTExpireKey(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	if err := parseLimitedForm(w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	kid := strings.TrimSpace(r.Form.Get("kid"))
@@ -873,7 +863,7 @@ func (s *Server) HandlePOSTExpireKey(w http.ResponseWriter, r *http.Request) {
 		}
 		expiresAt = &e
 	}
-	if err := s.authStore.UpdateAPIKeyExpiry(u.ID, kid, expiresAt); err != nil {
+	if err := s.authStore.UpdateAPIKeyExpiry(r.Context(), u.ID, kid, expiresAt); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

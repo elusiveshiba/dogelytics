@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestParseBearerOrHeader(t *testing.T) {
@@ -32,6 +34,25 @@ func TestParseBearerOrHeader(t *testing.T) {
 			t.Fatalf("unexpected token: %q", token)
 		}
 	})
+}
+
+func TestAPIKeySecretHashes(t *testing.T) {
+	secret := "a-random-high-entropy-secret"
+	hash := hashAPIKeySecret(secret)
+	if valid, legacy := verifyAPIKeySecret(hash, secret); !valid || legacy {
+		t.Fatalf("expected SHA-256 hash to verify without legacy marker")
+	}
+	if valid, _ := verifyAPIKeySecret(hash, "wrong"); valid {
+		t.Fatal("expected wrong secret to fail")
+	}
+
+	legacyHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("create legacy hash: %v", err)
+	}
+	if valid, legacy := verifyAPIKeySecret(string(legacyHash), secret); !valid || !legacy {
+		t.Fatalf("expected bcrypt hash to verify as legacy")
+	}
 }
 
 func TestParseToken(t *testing.T) {

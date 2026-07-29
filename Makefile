@@ -1,71 +1,61 @@
-.PHONY: build run test clean help
+.PHONY: build run test test-race test-integration vet fmt fmt-check check docker-setup docker-build docker-up docker-down help
 
-# Build the dogelytics binary
+GOCACHE ?= /tmp/dogelytics-go-cache
+GOMODCACHE ?= /tmp/dogelytics-go-mod-cache
+GOENV = GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE)
+
 build:
-	@echo "Building dogelytics..."
-	@go build -o dogelytics ./cmd/dogelytics
-	@echo "Build complete: ./dogelytics"
+	$(GOENV) go build -trimpath -o dogelytics ./cmd/dogelytics
 
-# Run the service with default settings
 run:
-	@echo "Starting dogelytics..."
-	@go run ./cmd/dogelytics
+	$(GOENV) go run ./cmd/dogelytics serve
 
-# Clean build artifacts
-clean:
-	@echo "Cleaning build artifacts..."
-	@rm -f dogelytics
-	@echo "Clean complete"
-
-# Download dependencies
-deps:
-	@echo "Downloading dependencies..."
-	@go mod download
-	@go mod tidy
-	@echo "Dependencies updated"
-
-# Run go vet
-vet:
-	@echo "Running go vet..."
-	@go vet ./...
-
-# Run go fmt
-fmt:
-	@echo "Formatting code..."
-	@go fmt ./...
-
-# Run tests
 test:
-	@echo "Running tests..."
-	@go test -v ./...
+	$(GOENV) go test ./...
 
-# Test the API (requires service to be running)
-test-api:
-	@echo "Testing health endpoint..."
-	@curl -s http://localhost:4420/health | jq
-	@echo "\nTesting balance endpoint (replace with valid address)..."
-	@echo "curl http://localhost:4420/balance?address=YOUR_DOGE_ADDRESS"
+test-race:
+	$(GOENV) go test -race ./...
 
-# Show help
+test-integration:
+	@test -n "$(DOGELYTICS_TEST_DBURL)" || (echo "DOGELYTICS_TEST_DBURL is required" >&2; exit 1)
+	$(GOENV) go test ./internal/store ./cmd/dogelytics -run Integration -v
+
+vet:
+	$(GOENV) go vet ./...
+
+fmt:
+	gofmt -w $$(find cmd internal img -name '*.go' -type f)
+
+fmt-check:
+	@test -z "$$(gofmt -l cmd internal img)" || (gofmt -l cmd internal img; exit 1)
+
+check: fmt-check test test-race vet
+	git diff --check
+
+docker-setup:
+	./scripts/setup-compose.sh
+
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up -d --build --wait
+
+docker-down:
+	docker compose down
+
 help:
-	@echo "Dogelytics Makefile"
-	@echo ""
-	@echo "Available targets:"
-	@echo "  build       - Build the dogelytics binary"
-	@echo "  run         - Run the service with default settings"
-	@echo "  clean       - Remove build artifacts"
-	@echo "  deps        - Download and tidy dependencies"
-	@echo "  vet         - Run go vet"
-	@echo "  fmt         - Format code with go fmt"
-	@echo "  test        - Run unit tests"
-	@echo "  test-api    - Test API endpoints (requires service to be running)"
-	@echo "  help        - Show this help message"
-	@echo ""
-	@echo "Examples:"
-	@echo "  make build"
-	@echo "  make run"
-	@echo "  INDEXER_DBURL=postgres://indexer:password@localhost:5432/indexer?sslmode=disable make run"
+	@echo "Dogelytics targets:"
+	@echo "  build             Build the native binary"
+	@echo "  run               Start the native server"
+	@echo "  test              Run all Go tests"
+	@echo "  test-race         Run all Go tests with race detection"
+	@echo "  test-integration  Run PostgreSQL tests (DOGELYTICS_TEST_DBURL required)"
+	@echo "  vet               Run go vet"
+	@echo "  fmt / fmt-check   Format or verify Go source"
+	@echo "  check             Run the local release checks"
+	@echo "  docker-setup      Generate non-overwriting Compose secrets"
+	@echo "  docker-build      Build the repository-local image"
+	@echo "  docker-up/down    Start or stop the Compose stack"
 
-# Default target
 .DEFAULT_GOAL := help
-

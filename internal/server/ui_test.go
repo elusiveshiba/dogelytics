@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/dogelytics/internal/config"
 	"github.com/dogeorg/dogelytics/internal/indexer"
 )
@@ -107,8 +106,8 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 			t.Fatalf("expected dashboard conversion UI to contain %q in %q", want, body)
 		}
 	}
-	if !strings.Contains(body, "Open admin UI") {
-		t.Fatalf("expected admin UI link in %q", body)
+	if strings.Contains(body, "Open admin UI") || strings.Contains(body, `href="http://dogelytics.local:4421"`) {
+		t.Fatalf("did not expect dashboard admin UI link in %q", body)
 	}
 	for _, want := range []string{
 		"Wallets",
@@ -171,6 +170,9 @@ func TestDashboardHandlerRoutes(t *testing.T) {
 	if !strings.Contains(body, "formatIndexedProgress(payload.core_blocks_height, payload.core_headers_height)") {
 		t.Fatalf("expected blocks progress formatting in %q", body)
 	}
+	if !strings.Contains(body, "complete ? 100 : 99.99") {
+		t.Fatalf("expected incomplete sync progress to stay below 100%% in %q", body)
+	}
 	if !strings.Contains(body, "loadDashboardStats({ autoRefresh: true });") || !strings.Contains(body, "60000") {
 		t.Fatalf("expected dashboard stats auto refresh in %q", body)
 	}
@@ -213,11 +215,11 @@ func TestDashboardDocsRoute(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"Dogelytics API Docs",
-		"https://api.dogelytics.com",
+		"http://localhost:4420",
 		"GET /balance",
 		"GET /conversion",
 		"currency=usd",
-		"cached row is older than one hour",
+		"Concurrent refreshes are combined",
 		`class="dashboard-button" href="/">dashboard</a>`,
 		"Authorization: Bearer YOUR_API_KEY",
 		"GET /health",
@@ -229,7 +231,7 @@ func TestDashboardDocsRoute(t *testing.T) {
 		"Dashboard Helper APIs",
 		"GET /api/dashboard-stats",
 		"unsupported-address",
-		"database-error",
+		"indexer-error",
 		"Such coffee?",
 		"Enjoying Dogelytics? Send a tip to:",
 		"DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz",
@@ -329,17 +331,16 @@ func TestDashboardBalanceRateLimit(t *testing.T) {
 	srv := NewServer(
 		&fakeBalanceStore{
 			balance: indexer.Balance{
-				Incoming:  koinu.Koinu(1),
-				Available: koinu.Koinu(2),
-				Outgoing:  koinu.Koinu(3),
-				Current:   koinu.Koinu(4),
+				Incoming:  "1",
+				Available: "2",
+				Outgoing:  "3",
+				Current:   "4",
 			},
 		},
 		nil,
 		nil,
 		&config.Config{
 			CorsOrigin:        "*",
-			Confirmations:     6,
 			RateLimit:         1,
 			APIKeyRateLimit:   5,
 			EnableDashboardUI: true,

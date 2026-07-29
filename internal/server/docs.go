@@ -15,9 +15,14 @@ func (s *Server) HandleGETDocs(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		ShowTipsWidget bool
 		TipsAddress    string
+		BaseURL        string
 	}{
 		ShowTipsWidget: s.config.EnableDashboardTips && strings.TrimSpace(s.config.DashboardTipsAddress) != "",
 		TipsAddress:    s.config.DashboardTipsAddress,
+		BaseURL:        strings.TrimRight(s.config.PublicURL, "/"),
+	}
+	if data.BaseURL == "" {
+		data.BaseURL = "http://localhost:4420"
 	}
 
 	renderTemplate(w, htmlHead+`
@@ -299,7 +304,8 @@ body {
     </div>
     <div class="window-content">
       <p>Use the public API host for external requests:</p>
-      <pre class="docs-code"><code>https://api.dogelytics.com</code></pre>
+      <pre class="docs-code"><code>{{.BaseURL}}</code></pre>
+      <p>Download the machine-readable OpenAPI 3.1 contract from <a href="/openapi.yaml"><code>/openapi.yaml</code></a>.</p>
     </div>
   </div>
 
@@ -312,7 +318,7 @@ body {
       <p>API keys are optional. Requests without a key are still allowed, but a valid key gets the higher API-key rate limit.</p>
       <pre class="docs-code"><code>curl \
   -H "Authorization: Bearer YOUR_API_KEY" \
-  "https://api.dogelytics.com/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"</code></pre>
+  "{{.BaseURL}}/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"</code></pre>
       <p>You can also send the key with <code>X-Api-Key: YOUR_API_KEY</code>.</p>
     </div>
   </div>
@@ -323,12 +329,12 @@ body {
       <span><img class="title-coin" src="/img/dogecoin-doge-logo-grayscale.svg" alt="" aria-hidden="true"></span>
     </div>
     <div class="window-content">
-      <p>Returns the balance for a Dogecoin address. Values are decimal DOGE strings.</p>
+      <p>Returns the balance for a Dogecoin address. Values are exact decimal DOGE strings. Available balance follows the indexer's fixed six-confirmation behaviour.</p>
       <table class="docs-table">
         <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
         <tr><td><code>address</code></td><td>yes</td><td>Dogecoin address to check.</td></tr>
       </table>
-      <pre class="docs-code"><code>curl "https://api.dogelytics.com/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"</code></pre>
+      <pre class="docs-code"><code>curl "{{.BaseURL}}/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"</code></pre>
       <pre class="docs-code"><code>{
   "incoming": "0.00000000",
   "available": "123.45678900",
@@ -349,7 +355,7 @@ body {
         <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
         <tr><td><code>currency</code></td><td>yes</td><td>Lowercase or uppercase currency code such as <code>usd</code>, <code>aud</code>, or <code>eur</code>.</td></tr>
       </table>
-      <pre class="docs-code"><code>curl "https://api.dogelytics.com/conversion?currency=usd"</code></pre>
+      <pre class="docs-code"><code>curl "{{.BaseURL}}/conversion?currency=usd"</code></pre>
       <pre class="docs-code"><code>{
   "currency": "usd",
   "rate": "0.23543210",
@@ -358,7 +364,7 @@ body {
   "fetched_at": "2026-05-28T01:44:00Z",
   "coingecko_updated_at": "2026-05-28T01:43:20Z"
 }</code></pre>
-      <p>Rates are sourced from CoinGecko and cached locally for one hour per currency. Dogelytics only refreshes from CoinGecko when a currency is missing from the cache or the cached row is older than one hour. The dashboard uses the same conversion data through its same-origin <code>/api/conversion</code> route.</p>
+      <p>Rates are sourced from CoinGecko and cached locally for one hour per currency. Concurrent refreshes are combined. If CoinGecko is unavailable, Dogelytics returns an older cached quote with source <code>stale-cache</code> when possible. The dashboard uses the same conversion data through its same-origin <code>/api/conversion</code> route.</p>
     </div>
   </div>
 
@@ -369,7 +375,7 @@ body {
     </div>
     <div class="window-content">
       <p>Returns service status and the raw sync heights Dogelytics reads from the indexer API.</p>
-      <pre class="docs-code"><code>curl "https://api.dogelytics.com/health"</code></pre>
+      <pre class="docs-code"><code>curl "{{.BaseURL}}/health"</code></pre>
       <pre class="docs-code"><code>{
   "ok": true,
   "indexer_height": 5900000,
@@ -410,7 +416,7 @@ GET /api/dashboard-stats</code></pre>
         <tr><td>400</td><td><code>unsupported-currency</code></td><td>The requested currency is not available from CoinGecko.</td></tr>
         <tr><td>401</td><td><code>invalid-api-key</code></td><td>The supplied API key is invalid, expired, or revoked.</td></tr>
         <tr><td>429</td><td><code>rate-limit-exceeded</code></td><td>The rate limit was exceeded. The response message includes when to try again.</td></tr>
-        <tr><td>500</td><td><code>database-error</code></td><td>Dogelytics could not read indexer data.</td></tr>
+        <tr><td>502</td><td><code>indexer-error</code></td><td>Dogelytics could not retrieve or validate the indexer response.</td></tr>
         <tr><td>502</td><td><code>conversion-source-error</code></td><td>Dogelytics could not refresh a conversion rate from CoinGecko.</td></tr>
         <tr><td>503</td><td><code>conversion-cache-unavailable</code></td><td>The local conversion cache is unavailable.</td></tr>
       </table>

@@ -11,6 +11,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) APIHandler() http.Handler {
 	mux := http.NewServeMux()
 	registerImageRoutes(mux)
+	mux.HandleFunc("/openapi.yaml", s.HandleOpenAPI)
 	mux.HandleFunc("/livez", s.HandleLiveness)
 	mux.HandleFunc("/readyz", s.HandleReadiness)
 	mux.HandleFunc("/health", s.HandleHealth)
@@ -56,6 +57,7 @@ func (s *Server) DashboardHandler() http.Handler {
 	mux := http.NewServeMux()
 	registerFaviconRoutes(mux)
 	registerImageRoutes(mux)
+	mux.HandleFunc("/openapi.yaml", s.HandleOpenAPI)
 	mux.HandleFunc("/docs", s.HandleGETDocs)
 	mux.HandleFunc("/", s.HandleGETDashboard)
 	mux.HandleFunc("/api/balance", s.APIKeyAuthMiddleware(s.RateLimitMiddleware(s.HandleDashboardBalance)))

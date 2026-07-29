@@ -215,11 +215,11 @@ func TestDashboardDocsRoute(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"Dogelytics API Docs",
-		"https://api.dogelytics.com",
+		"http://localhost:4420",
 		"GET /balance",
 		"GET /conversion",
 		"currency=usd",
-		"cached row is older than one hour",
+		"Concurrent refreshes are combined",
 		`class="dashboard-button" href="/">dashboard</a>`,
 		"Authorization: Bearer YOUR_API_KEY",
 		"GET /health",
@@ -231,7 +231,7 @@ func TestDashboardDocsRoute(t *testing.T) {
 		"Dashboard Helper APIs",
 		"GET /api/dashboard-stats",
 		"unsupported-address",
-		"database-error",
+		"indexer-error",
 		"Such coffee?",
 		"Enjoying Dogelytics? Send a tip to:",
 		"DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz",

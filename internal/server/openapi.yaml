@@ -1,0 +1,218 @@
+openapi: 3.1.0
+info:
+  title: Dogelytics API
+  version: 0.1.0
+  description: Dogecoin balance, conversion and service-health API.
+servers:
+  - url: /
+paths:
+  /balance:
+    get:
+      summary: Get a Dogecoin address balance
+      security:
+        - {}
+        - bearerAuth: []
+        - apiKeyHeader: []
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exact decimal DOGE balances; availability follows the indexer's fixed six-confirmation contract.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorised"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /conversion:
+    get:
+      summary: Get the DOGE conversion rate for a currency
+      security:
+        - {}
+        - bearerAuth: []
+        - apiKeyHeader: []
+      parameters:
+        - name: currency
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-zA-Z0-9-]{2,16}$"
+            example: aud
+      responses:
+        "200":
+          description: A fresh, cached or stale-cache conversion quote.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorised"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /health:
+    get:
+      summary: Get indexer and Dogecoin Core sync heights
+      responses:
+        "200":
+          description: Dependency sync state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /livez:
+    get:
+      summary: Check whether the HTTP process is live
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /readyz:
+    get:
+      summary: Check PostgreSQL and indexer readiness
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /openapi.yaml:
+    get:
+      summary: Download this OpenAPI document
+      responses:
+        "200":
+          description: OpenAPI 3.1 document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+  schemas:
+    DogeAmount:
+      type: string
+      pattern: "^-?(0|[1-9][0-9]*)(\\.[0-9]{1,8})?$"
+      examples: ["123456789012.00000001"]
+    Balance:
+      type: object
+      required: [incoming, available, outgoing, current]
+      properties:
+        incoming:
+          $ref: "#/components/schemas/DogeAmount"
+        available:
+          $ref: "#/components/schemas/DogeAmount"
+        outgoing:
+          $ref: "#/components/schemas/DogeAmount"
+        current:
+          $ref: "#/components/schemas/DogeAmount"
+    Conversion:
+      type: object
+      required: [currency, rate, source, cached, fetched_at]
+      properties:
+        currency:
+          type: string
+        rate:
+          type: string
+        source:
+          type: string
+          enum: [static, cache, stale-cache, coingecko]
+        cached:
+          type: boolean
+        fetched_at:
+          type: string
+          format: date-time
+        coingecko_updated_at:
+          type: string
+          format: date-time
+    Health:
+      type: object
+      required: [ok, indexer_height]
+      properties:
+        ok:
+          type: boolean
+        indexer_height:
+          type: integer
+          format: int64
+        core_blocks_height:
+          type: integer
+          format: int64
+        core_headers_height:
+          type: integer
+          format: int64
+        core_sync_updated_at:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+  responses:
+    OK:
+      description: Service is healthy.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [ok]
+            properties:
+              ok:
+                type: boolean
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorised:
+      description: Invalid, expired or revoked API key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimited:
+      description: Request limit exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadGateway:
+      description: Upstream dependency returned an unusable response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unavailable:
+      description: A required dependency is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

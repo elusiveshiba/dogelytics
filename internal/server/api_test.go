@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,6 +119,22 @@ func TestHandlerRoutesAPIOnly(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for removed UI routes, got %d", rec.Code)
+	}
+}
+
+func TestOpenAPISpecificationIsServed(t *testing.T) {
+	srv := newTestServer(&fakeBalanceStore{}, &config.Config{CorsOrigin: "*"})
+	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	rec := httptest.NewRecorder()
+	srv.APIHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "application/yaml") {
+		t.Fatalf("unexpected content type: %q", contentType)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "openapi: 3.1.0") || !strings.Contains(body, "/balance:") {
+		t.Fatalf("unexpected OpenAPI body: %q", body)
 	}
 }
 

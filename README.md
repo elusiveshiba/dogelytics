@@ -4,427 +4,253 @@
   <img src="img/dogelytics%20icon.png" alt="Dogelytics logo" width="140">
 </p>
 
-A lightweight REST API service that provides Dogecoin wallet balance information by querying the [Dogecoin Indexer](https://github.com/dogeorg/indexer) HTTP API.
+Dogelytics is a small HTTP service for Dogecoin wallet balances, currency conversion, API-key access and privacy-preserving usage analytics. It reads balances and chain progress from the [Dogecoin Indexer](https://github.com/dogeorg/indexer) HTTP API and stores its own application data in PostgreSQL.
 
-## Features
+This release builds its container from this repository. There is no published Dogelytics registry image yet.
 
-- **Balance Queries**: Incoming, available, outgoing, and current balance for any Dogecoin address
-- **Health Checks**: Monitor indexer, blocks, and headers sync heights from the indexer API
-- **Rate Limiting**: Per-IP and per-API key rate limiting
-- **API Key Management**: User accounts with API key generation, revocation, and expiry
-- **Usage Statistics**: Real-time analytics with interactive charts and filtering
-- **Admin UI**: Optional management interface with login, registration, key management, and usage statistics
-- **Dashboard UI**: Optional public dashboard with a wallet checker and server snapshot cards
-- **Meme Number Easter Egg**: Public pages highlight `69` and `420` variants and fire colour-matched confetti when clicked
-- **Admin CLI**: Command-line tool for managing users and API keys
-- **CORS Support**: Configurable CORS headers for browser-based applications
+## Requirements
 
-## Prerequisites
+- Docker Engine with Docker Compose v2 for the supported deployment path.
+- A reachable Dogecoin Indexer HTTP API. Dogecoin Core and the indexer are installed and operated separately by the Foundation or machine operator.
+- Git and OpenSSL for the quick start.
 
-- Go 1.21 or later
-- [Dogecoin Indexer](https://github.com/dogeorg/indexer) with its HTTP API reachable
-- PostgreSQL for the optional Dogelytics database, which stores users, API keys, and sessions
+PostgreSQL is required. The supplied Compose stack owns a dedicated PostgreSQL 16 instance for Dogelytics; it does not own Dogecoin Core, the indexer or the indexer's database.
 
-## Dogebox Pup
+Balance availability follows the indexer's fixed six-confirmation behaviour. Dogelytics does not configure that confirmation depth.
 
-This repository includes a Dogebox pup definition in `manifest.json` and `pup.nix`. The pup depends on the Indexer pup's `indexer-api` interface, derives `INDEXER_API_URL` from that connection, and exposes optional admin and dashboard UIs.
+## Quick start
 
-## Getting Started
-
-### 1. Install Dependencies
+Clone the repository, generate local secrets, review the non-secret settings, then build and start the stack:
 
 ```bash
-make deps
+git clone https://github.com/elusiveshiba/dogelytics.git
+cd dogelytics
+./scripts/setup-compose.sh
+${EDITOR:-vi} .env
+docker compose up -d --build --wait
 ```
 
-Or directly:
+The setup script creates ignored files under `secrets/` and creates `.env` from `compose.env.example`. Running it again keeps every existing secret and configuration file unchanged.
+
+The default listeners are bound to localhost:
+
+| Service | URL |
+|---|---|
+| Public API | `http://127.0.0.1:4420` |
+| Admin UI | `http://127.0.0.1:4421` |
+| Public dashboard and docs | `http://127.0.0.1:4422` |
+
+Check readiness and logs with:
 
 ```bash
-go mod download
+docker compose exec dogelytics /dogelytics healthcheck
+docker compose logs -f dogelytics
 ```
 
-### 2. Set Up PostgreSQL
-
-If you don't already have PostgreSQL running, pick one:
-
-**Docker (quick start):**
+Create the first operator. The password prompt does not echo:
 
 ```bash
-docker run -d --name postgres-dev \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  postgres:16-alpine
+docker compose run --rm dogelytics admin user create --email operator@example.com
+docker compose run --rm dogelytics admin key create --email operator@example.com
 ```
 
-**macOS (Homebrew):**
+The API-key secret is printed once. Store it securely.
+
+## Connecting an indexer
+
+Dogelytics only needs the indexer's HTTP base URL. It never connects to the indexer's PostgreSQL database.
+
+### Indexer on the Docker host
+
+The Compose default is:
+
+```dotenv
+INDEXER_API_URL=http://host.docker.internal:8000
+```
+
+`compose.yaml` adds the Linux `host-gateway` mapping. The indexer must listen on an address reachable from Docker; a service bound exclusively to host loopback may not be reachable on Linux.
+
+### Indexer on another machine
+
+Set an HTTP or HTTPS URL that the Dogelytics container can reach:
+
+```dotenv
+INDEXER_API_URL=http://192.0.2.20:8000
+```
+
+Restrict the indexer port at the network or host firewall. Dogelytics requires `GET /height` and `GET /balance?address=...`.
+
+### Indexer on an existing Docker network
+
+Set the existing network and the indexer's service URL:
+
+```dotenv
+INDEXER_DOCKER_NETWORK=dogecoin-network
+INDEXER_API_URL=http://dogecoin-indexer:8000
+```
+
+Start Compose with the network override:
 
 ```bash
-brew install postgresql@16 && brew services start postgresql@16
+docker compose -f compose.yaml -f compose.indexer-network.yaml up -d --build --wait
 ```
 
-**Linux (Debian/Ubuntu):**
+The network must already exist. Dogelytics still keeps its PostgreSQL service on its own private network.
+
+## API
+
+The machine-readable OpenAPI 3.1 contract is available at `GET /openapi.yaml` on the API and dashboard listeners. Human-readable API documentation is available at `/docs` on the dashboard listener.
+
+Common requests:
 
 ```bash
-sudo apt install postgresql postgresql-contrib && sudo systemctl start postgresql
+curl http://127.0.0.1:4420/livez
+curl http://127.0.0.1:4420/readyz
+curl http://127.0.0.1:4420/health
+curl 'http://127.0.0.1:4420/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8'
+curl 'http://127.0.0.1:4420/conversion?currency=aud'
 ```
 
-### 3. Create the Dogelytics Database
-
-The Indexer manages blockchain data behind its HTTP API. The Dogelytics database only needs to be created if you want auth-backed features such as users, API keys, request logs, or conversion-rate caching.
-
-**Automated setup (recommended):**
+Balance values are validated decimal strings rather than machine-sized integers, so large address totals remain exact. An API key is optional and selects the higher per-key request limit:
 
 ```bash
-./scripts/setup-auth-db.sh
+curl -H 'Authorization: Bearer dglk_KID.SECRET' \
+  'http://127.0.0.1:4420/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8'
 ```
 
-This interactive script will:
-- Connect to your PostgreSQL instance
-- Auto-generate a secure random password (or accept a custom one)
-- Create the `dogelytics` database and user with proper permissions
-- Output the `DOGELYTICS_DBURL` connection string for your `.env` file
+Conversion quotes are cached for one hour. Concurrent refreshes for the same currency are combined, and an older cached quote is returned with `source: stale-cache` if the conversion provider is temporarily unavailable.
 
-**Manual setup:**
+## Administration commands
 
-```sql
--- Connect as admin
-psql -U postgres
+The single `dogelytics` binary provides all runtime and administration commands. Running it without a command remains equivalent to `serve`.
 
--- Create database and user
-CREATE DATABASE dogelytics;
-CREATE USER dogelytics WITH PASSWORD 'YOUR_SECURE_PASSWORD';
-GRANT ALL PRIVILEGES ON DATABASE dogelytics TO dogelytics;
-
--- Connect to dogelytics database and grant schema permissions (PostgreSQL 15+)
-\c dogelytics
-GRANT ALL ON SCHEMA public TO dogelytics;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dogelytics;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dogelytics;
+```text
+dogelytics serve [server flags]
+dogelytics version
+dogelytics healthcheck [--url URL]
+dogelytics admin user create --email EMAIL [--password-stdin]
+dogelytics admin user list
+dogelytics admin key create --email EMAIL [--expires YYYY-MM-DD]
+dogelytics admin key list [--email EMAIL]
+dogelytics admin key revoke --kid KID
 ```
 
-### 4. Configure
+Use `--password-stdin` for non-interactive provisioning. Do not put a password on the command line. Compose administration commands use the same secret-mounted database configuration and migrations as the server:
 
-Copy the example environment file and edit it:
+```bash
+docker compose run --rm dogelytics admin user list
+docker compose run --rm dogelytics admin key list --email operator@example.com
+docker compose run --rm dogelytics admin key revoke --kid KEY_ID
+```
+
+## Configuration
+
+Server configuration is loaded from defaults, `.env`, environment variables and finally command flags. Existing environment variables are never overwritten by `.env`.
+
+| Environment | Flag | Default | Purpose |
+|---|---|---|---|
+| `INDEXER_API_URL` | `-indexer-api-url` | `http://localhost:8000` | Required indexer HTTP API |
+| `DOGELYTICS_DBURL` | `-dogelytics-dburl` | none | Required PostgreSQL URL |
+| `BIND` | `-bind` | `localhost:4420` | Public API listener |
+| `CORS` | `-cors` | `*` | Comma-separated allowed origins, or `*` |
+| `PUBLIC_URL` | `-public-url` | none | External HTTP(S) origin, without a path |
+| `TRUSTED_PROXIES` | `-trusted-proxies` | none | Comma-separated proxy IPs/CIDRs allowed to supply forwarded headers |
+| `RATELIMIT` | `-ratelimit` | `10` | Requests per IP per minute; `0` disables |
+| `API_KEY_RATELIMIT` | `-apikey-ratelimit` | `120` | Requests per API key per minute; `0` disables |
+| `SESSION_SECRET` | `-session-secret` | none | Admin session HMAC secret, minimum 32 characters |
+| `ANALYTICS_SECRET` | `-analytics-secret` | none | Analytics fingerprint HMAC secret, minimum 32 characters |
+| `ENABLE_ANALYTICS` | `-enable-analytics` | `true` | Store private analytics and rollups |
+| `ANALYTICS_RETENTION_DAYS` | `-analytics-retention-days` | `30` | Fingerprinted raw-event retention |
+| `MAX_KEYS_PER_USER` | `-max-keys-per-user` | `1` | Maximum active keys per user |
+| `ENABLE_ADMIN_UI` | `-enable-admin-ui` | `false` | Start the admin listener |
+| `ADMIN_UI_PORT` | `-admin-ui-port` | `4421` | Admin listener port |
+| `ENABLE_DASHBOARD_UI` | `-enable-dashboard-ui` | `false` | Start the dashboard listener |
+| `DASHBOARD_UI_PORT` | `-dashboard-ui-port` | `4422` | Dashboard listener port |
+| `ENABLE_DASHBOARD_TIPS` | `-enable-dashboard-tips` | `true` | Show the dashboard tips widget |
+| `DASHBOARD_TIPS_ADDRESS` | `-dashboard-tips-address` | project address | Tips wallet address |
+| `ENABLE_SIGNUPS` | `-enable-signups` | `false` | Allow admin-UI self-registration |
+
+`DOGELYTICS_DBURL_FILE`, `SESSION_SECRET_FILE` and `ANALYTICS_SECRET_FILE` are supported for mounted secrets. A direct environment value takes precedence over its `_FILE` variant. The Compose stack uses files under `/run/secrets` and does not place secret values in container environment variables.
+
+Configuration is validated before listeners start. PostgreSQL and the indexer are required dependencies; `/readyz` returns unavailable when either cannot be reached.
+
+## Reverse proxy and public access
+
+The default localhost port publishing is deliberate. Put TLS and public routing in a reverse proxy, then set:
+
+```dotenv
+PUBLIC_URL=https://api.example.org
+TRUSTED_PROXIES=172.18.0.0/16
+CORS=https://app.example.org
+```
+
+Only add addresses or CIDRs that belong to the proxy. Forward `Host`, `X-Forwarded-For` and `X-Forwarded-Proto`; Dogelytics ignores forwarded client/protocol data from untrusted peers. `PUBLIC_URL` controls secure cookies and same-origin CSRF checks. Route the API, admin and dashboard hosts or ports separately if all three are enabled.
+
+Keep `ENABLE_SIGNUPS=false` unless public registration is intentional. API-key authentication attempts and password login attempts are rate limited before expensive verification.
+
+## Privacy and data retention
+
+Dogelytics stores HMAC fingerprints, never raw client IP addresses or wallet addresses. Successful-request totals, unique-wallet state and hourly rollups are retained for all-time statistics, including history belonging to revoked API keys. Fingerprinted request events are removed after `ANALYTICS_RETENTION_DAYS` (30 by default).
+
+Keep `ANALYTICS_SECRET` stable if unique counts must remain comparable across restarts. Rotating it prevents future events from correlating with existing fingerprints; plan a data reset if rotation is required.
+
+API-key secrets use constant-time SHA-256 verification. Existing bcrypt API-key records remain valid and are automatically rewritten after their next successful use. User passwords remain bcrypt hashes.
+
+## Backup, upgrade and rollback
+
+Back up PostgreSQL before every upgrade:
+
+```bash
+mkdir -p backups
+docker compose exec -T postgres \
+  pg_dump -U dogelytics -d dogelytics -Fc > "backups/dogelytics-$(date +%Y%m%d-%H%M%S).dump"
+```
+
+Also back up `.env` and `secrets/` through a secure secret-management channel. They are intentionally excluded from Git.
+
+To upgrade a checked-out deployment:
+
+```bash
+git fetch --tags
+git switch --detach v0.1.0
+docker compose build --pull
+docker compose up -d --wait
+```
+
+Database migrations are embedded, ordered and transactional. To roll back application code, restore the previous Git ref and rebuild. If that version cannot read the migrated schema, stop the stack, restore the pre-upgrade database dump into a new empty PostgreSQL volume, then start the previous version. Test backup restoration before relying on it in production.
+
+`docker compose down` keeps the database volume. Do not use `docker compose down --volumes` on a real deployment unless permanent database deletion is intended.
+
+## Native development
+
+Native development requires Go 1.25.12 or a newer patched release, PostgreSQL and a reachable indexer:
 
 ```bash
 cp .env.example .env
-```
-
-At minimum, set the Indexer API URL if it is not running on `http://localhost:8000`:
-
-```bash
-INDEXER_API_URL=http://localhost:8000
-```
-
-If you enable the admin UI, also set the Dogelytics database URL and a session secret:
-
-```bash
-DOGELYTICS_DBURL=postgres://dogelytics:yourpassword@localhost:5432/dogelytics?sslmode=disable
-SESSION_SECRET=your-secret-key-here
-```
-
-Generate a strong session secret with:
-
-```bash
-openssl rand -base64 32
-```
-
-`SESSION_SECRET` is required only when `ENABLE_ADMIN_UI=true`.
-
-See [Configuration Reference](#configuration-reference) for all options.
-
-### 5. Run
-
-```bash
+${EDITOR:-vi} .env
+make check
 make run
 ```
 
-Or directly:
+Useful targets are shown by `make help`. PostgreSQL integration tests require a disposable database:
 
 ```bash
-go run ./cmd/dogelytics
+DOGELYTICS_TEST_DBURL='postgres://dogelytics:password@127.0.0.1:5432/dogelytics?sslmode=disable' \
+  make test-integration
 ```
 
-To build a binary:
+The CI workflow runs formatting, unit and PostgreSQL integration tests, race detection, vet, Staticcheck, Go vulnerability analysis, Compose smoke tests, Trivy image scanning and non-published amd64/arm64 builds.
 
-```bash
-make build
-./dogelytics
-```
+## Dogebox
 
-The [Dogecoin Indexer](https://github.com/dogeorg/indexer) HTTP API must be reachable for balance queries and sync heights.
+`pup.nix` packages v0.1.0 with Go 1.25 and PostgreSQL 16. The pup obtains the indexer URL from Dogebox's `indexer-api` interface, generates separate database/session/analytics secrets on first start, persists them under `/storage`, runs migrations automatically and exposes the API, admin and dashboard listeners.
 
-## Configuration Reference
+The web assets are embedded in the binary, so the package does not need a separate runtime asset directory.
 
-Configuration is loaded in this order (later sources override earlier ones):
+## Release process
 
-1. Defaults
-2. `.env` file (if present in the working directory)
-3. Environment variables
-4. Command-line flags
+See [docs/release-checklist.md](docs/release-checklist.md). The v0.1.0 release candidate is repository-local: CI validates the Dockerfile and Compose stack, but no container is logged in, tagged for a registry or published.
 
-| Environment Variable | Flag | Description | Default |
-|---------------------|------|-------------|---------|
-| `INDEXER_API_URL` | `-indexer-api-url` | Indexer API base URL for balances and sync heights | `http://localhost:8000` |
-| `DOGELYTICS_DBURL` | `-dogelytics-dburl` | PostgreSQL URL for dogelytics database (users, keys, sessions) | `postgres://dogelytics:changeme@localhost:5432/dogelytics?sslmode=disable` |
-| `BIND` | `-bind` | HTTP server bind address | `localhost:4420` |
-| `CORS` | `-cors` | CORS allowed origin (`*` for all) | `*` |
-| `RATELIMIT` | `-ratelimit` | Max requests per IP per minute (0 = disabled) | `10` |
-| `API_KEY_RATELIMIT` | `-apikey-ratelimit` | Max requests per API key per minute (0 = disabled) | `120` |
-| `SESSION_SECRET` | `-session-secret` | Session HMAC secret (required when admin UI is enabled) | _(empty)_ |
-| `MAX_KEYS_PER_USER` | `-max-keys-per-user` | Maximum API keys per user | `1` |
-| `ENABLE_ADMIN_UI` | `-enable-admin-ui` | Enable the admin UI listener | `false` |
-| `ADMIN_UI_PORT` | `-admin-ui-port` | Port for the admin UI listener | `4421` |
-| `ENABLE_DASHBOARD_UI` | `-enable-dashboard-ui` | Enable the dashboard UI listener | `false` |
-| `DASHBOARD_UI_PORT` | `-dashboard-ui-port` | Port for the dashboard UI listener | `4422` |
-| `ENABLE_DASHBOARD_TIPS` | `-enable-dashboard-tips` | Enable the dashboard "Such coffee?" tips widget | `true` |
-| `DASHBOARD_TIPS_ADDRESS` | `-dashboard-tips-address` | Dogecoin address shown in the dashboard tips widget | `DChPB3HbQgNYgWRrpeRKqNT6939rRLceNz` |
-| `ENABLE_SIGNUPS` | `-enable-signups` | Enable user registration through the admin UI | `false` |
+## Licence
 
-## API Reference
-
-### API Hosts
-
-Production deployments normally expose the public API at `https://api.dogelytics.com`. Local development uses the API listener, which defaults to `http://localhost:4420`.
-
-When the dashboard UI is enabled, it also exposes same-origin helper routes under its own host:
-
-- `GET /api/balance` mirrors `GET /balance` for dashboard wallet checks.
-- `GET /api/conversion` mirrors `GET /conversion` for dashboard currency conversions.
-- `GET /api/dashboard-stats` returns public dashboard usage counters.
-
-### GET /balance
-
-Returns the balance for a Dogecoin address. All values are decimal DOGE strings.
-
-**Parameters:**
-- `address` (required): Dogecoin address
-
-**Authentication (optional):** Include an API key via `Authorization: Bearer <key>` or `X-Api-Key: <key>` header for a higher rate limit.
-
-**Example:**
-
-```bash
-curl "http://localhost:4420/balance?address=DLAznsPDLDRgsVcTFWRMYMG5uH6GddDtv8"
-```
-
-```json
-{
-  "incoming": "100000000.00000000",
-  "available": "500000000.00000000",
-  "outgoing": "50000000.00000000",
-  "current": "600000000.00000000"
-}
-```
-
-**Errors:**
-
-| Status | Error | Description |
-|--------|-------|-------------|
-| 400 | `missing-parameter` | Missing `address` query parameter |
-| 400 | `invalid-address` | Invalid Dogecoin address format |
-| 400 | `unsupported-address` | Unsupported Dogecoin address type |
-| 401 | `invalid-api-key` | Invalid, expired, or revoked API key |
-| 429 | `rate-limit-exceeded` | Rate limit exceeded |
-| 500 | `database-error` | Failed to read balance data |
-
-### GET /conversion
-
-Returns the current DOGE conversion rate for a single target currency code.
-
-**Parameters:**
-- `currency` (required): Currency code such as `usd`, `aud`, or `eur`
-
-**Authentication (optional):** Include an API key via `Authorization: Bearer <key>` or `X-Api-Key: <key>` header for a higher rate limit.
-
-**Example:**
-
-```bash
-curl "http://localhost:4420/conversion?currency=usd"
-```
-
-```json
-{
-  "currency": "usd",
-  "rate": "0.23543210",
-  "source": "coingecko",
-  "cached": false,
-  "fetched_at": "2026-05-28T01:44:00Z",
-  "coingecko_updated_at": "2026-05-28T01:43:20Z"
-}
-```
-
-Conversion rates are sourced from CoinGecko and cached locally in the Dogelytics database for one hour per currency. Dogelytics only refreshes a currency when it is missing from the cache or the cached row is older than one hour.
-
-**Errors:**
-
-| Status | Error | Description |
-|--------|-------|-------------|
-| 400 | `missing-parameter` | Missing `currency` query parameter |
-| 400 | `invalid-currency` | Invalid currency code format |
-| 400 | `unsupported-currency` | Unsupported currency code |
-| 401 | `invalid-api-key` | Invalid, expired, or revoked API key |
-| 429 | `rate-limit-exceeded` | Rate limit exceeded |
-| 502 | `conversion-source-error` | Failed to refresh conversion rate from CoinGecko |
-| 503 | `conversion-cache-unavailable` | Local conversion cache unavailable |
-
-### GET /health
-
-Returns service status and the raw sync heights Dogelytics reads from the indexer API.
-
-```bash
-curl "http://localhost:4420/health"
-```
-
-```json
-{
-  "ok": true,
-  "indexer_height": 5900000,
-  "core_blocks_height": 6224976,
-  "core_headers_height": 6224976,
-  "core_sync_updated_at": "2026-06-01T04:00:00Z"
-}
-```
-
-- `indexer_height`: last block indexed by the indexer.
-- `core_blocks_height`: local Core blocks height as reported by the indexer.
-- `core_headers_height`: best known chain tip from headers as reported by the indexer.
-- `core_sync_updated_at`: when the indexer last refreshed Core sync heights.
-
-If the indexer sync heights are unavailable, `/health` still returns `ok` and `indexer_height`, but omits `core_blocks_height`, `core_headers_height`, and `core_sync_updated_at`.
-
-**Errors:**
-
-| Status | Error | Description |
-|--------|-------|-------------|
-| 500 | `database-error` | Failed to read indexer height |
-
-### Rate Limiting
-
-All requests are rate-limited per IP. Requests with a valid API key use a separate, higher limit.
-
-| | Limit |
-|---|---|
-| Without API key | 10 requests/minute per IP |
-| With API key | 120 requests/minute per key |
-
-These defaults are configurable via `RATELIMIT` and `API_KEY_RATELIMIT`.
-
-Dogelytics uses CoinGecko's public `simple/price` API for conversion data and keeps a local one-hour cache per requested currency to avoid unnecessary upstream calls.
-
-### Dashboard Helper APIs
-
-These routes are served from the dashboard UI host when `ENABLE_DASHBOARD_UI=true`. They exist so the browser dashboard can call Dogelytics without cross-origin setup:
-
-| Route | Description |
-|-------|-------------|
-| `GET /api/balance?address=<address>` | Same response and errors as `GET /balance` |
-| `GET /api/conversion?currency=<currency>` | Same response and errors as `GET /conversion` |
-| `GET /api/dashboard-stats` | Public dashboard stats, including wallet lookup counters |
-
-Example dashboard stats response:
-
-```json
-{
-  "available": true,
-  "indexer_height": 5900000,
-  "core_blocks_height": 6224976,
-  "core_headers_height": 6224976,
-  "core_sync_updated_at": "2026-06-01T04:00:00Z",
-  "indexed_percent": 94.7792,
-  "total_wallets_checked": 77,
-  "wallets_checked_last_24h": 12,
-  "unique_wallets_checked": 5,
-  "unique_wallets_last_24h": 3
-}
-```
-
-## User & Key Management
-
-Users and API keys can be managed through the web UI or the admin CLI.
-
-Each user can hold up to `MAX_KEYS_PER_USER` active keys (default: 1). Key secrets are shown only once at creation. Passwords must be at least 12 characters.
-
-### Admin UI
-
-Dogelytics includes an optional admin interface with a Windows 95 theme. It runs on its own port and is disabled by default.
-
-| Operation | How |
-|---|---|
-| Register | `/register` (when `ENABLE_SIGNUPS=true`) |
-| Log in / out | `/login`, logout button on `/keys` |
-| Create API key | `/keys` → "Create New API Key" (optional expiry, max 1 year) |
-| View keys | `/keys` — active keys shown by default; toggle to include revoked/expired |
-| Revoke a key | `/keys` → "Revoke" button next to the key |
-| Usage statistics | `/keys` — real-time chart with filter (Overall / My Keys) and timeframe (Hour, Day, Week, Month, Year) |
-
-**Controlling access:**
-
-- `ENABLE_ADMIN_UI=true` starts the admin UI listener on `ADMIN_UI_PORT`.
-- `ENABLE_SIGNUPS=false` disables self-registration while keeping the admin UI available for existing users. When disabled, users can only be created via the admin CLI.
-
-### Dashboard UI
-
-Dogelytics also includes an optional public dashboard on `DASHBOARD_UI_PORT`, separate from the API and admin UI. The first dashboard focuses on:
-
-- Looking up a wallet balance from a pasted Dogecoin address
-- Showing total successful wallet checks
-- Showing wallet checks in the last 24 hours
-- Showing unique wallets checked in the last 24 hours
-- Showing the current indexed height
-- Showing a small minimisable "Such coffee?" tips widget when `ENABLE_DASHBOARD_TIPS=true`
-
-Enable it with `ENABLE_DASHBOARD_UI=true`.
-
-### Admin CLI
-
-A command-line tool for managing users and API keys directly. Useful when the UI is disabled, self-registration is off, or for scripted provisioning.
-
-**Build:**
-
-```bash
-go build -o admin ./cmd/admin
-```
-
-**Commands:**
-
-| Operation | Command |
-|---|---|
-| Create user | `./admin create-user --email user@example.com --password securepass123` |
-| Create API key | `./admin create-key --email user@example.com [--expiry 2026-12-31]` |
-| Revoke a key | `./admin revoke-key --email user@example.com --kid <key-id>` |
-| List users | `./admin list-users` |
-| List keys | `./admin list-keys --email user@example.com` |
-
-`list-keys` shows key metadata (ID, dates, status) — not the secret.
-
-**Configuration:**
-
-The admin tool only needs access to the dogelytics database. It loads `.env` automatically if present. The database URL can also be set via environment variable or flag:
-
-```bash
-export DOGELYTICS_DBURL="postgres://dogelytics:password@localhost:5432/dogelytics?sslmode=disable"
-./admin list-users
-
-# Or with a flag
-./admin list-users -dogelytics-dburl="postgres://dogelytics:password@localhost:5432/dogelytics?sslmode=disable"
-```
-
-## Docker Deployment
-
-See [dogecoinfoundation/docker](https://github.com/dogecoinfoundation/docker) for containerized deployment with Docker Compose.
-
-## Security
-
-For production deployments:
-
-1. **Disable self-registration** if you don't want open sign-ups — set `ENABLE_SIGNUPS=false`
-2. **Use a strong session secret** — generate with `openssl rand -base64 32`
-3. **Set appropriate rate limits** via `RATELIMIT` and `API_KEY_RATELIMIT`
-4. **Restrict CORS** — set `CORS` to specific domains instead of `*`
-5. **Secure database connections** — use strong passwords and `sslmode=require` for PostgreSQL
-
-## License
-
-MIT License — see LICENSE file for details.
+MIT — see [LICENSE](LICENSE).

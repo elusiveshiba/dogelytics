@@ -3,14 +3,36 @@
 let
   postgres = pkgs.postgresql_16;
   storageDirectory = "/storage";
+  sourceRoot = toString ./.;
+  cleanSource = pkgs.lib.cleanSourceWith {
+    src = ./.;
+    filter = path: type:
+      let
+        relative = pkgs.lib.removePrefix "${sourceRoot}/" (toString path);
+      in
+        relative != ".env"
+        && relative != ".git"
+        && !(pkgs.lib.hasPrefix ".git/" relative)
+        && relative != "result"
+        && relative != ".DS_Store"
+        && relative != "secrets"
+        && !(pkgs.lib.hasPrefix "secrets/" relative);
+  };
 
   dogelytics-bin = pkgs.buildGo125Module {
     pname = "dogelytics";
     version = "0.1.0";
-    src = ./.;
+    src = cleanSource;
     vendorHash = "sha256-gY1REHEEYz7kEib9joDqgEZY8EmX4BUTKZg/hlz+SLU=";
 
     subPackages = [ "cmd/dogelytics" ];
+    ldflags = [
+      "-s"
+      "-w"
+      "-X main.version=v0.1.0"
+      "-X main.commit=dogebox"
+      "-X main.buildDate=reproducible"
+    ];
   };
 
   dogelytics-run = pkgs.writeShellScriptBin "run.sh" ''

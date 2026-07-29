@@ -2,7 +2,7 @@ name: dogelytics
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     restart: unless-stopped
     environment:
       POSTGRES_DB: dogelytics
@@ -25,7 +25,7 @@ services:
     build:
       context: .
       args:
-        VERSION: ${DOGELYTICS_VERSION:-dev}
+        VERSION: ${DOGELYTICS_VERSION:-v0.1.0}
         COMMIT: ${DOGELYTICS_COMMIT:-local}
         BUILD_DATE: ${DOGELYTICS_BUILD_DATE:-local}
     restart: unless-stopped

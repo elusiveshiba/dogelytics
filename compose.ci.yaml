@@ -1,0 +1,26 @@
+services:
+  indexer-fixture:
+    image: busybox:1.37.0-musl@sha256:fc6dddc4c44b1bfe37f41cae8e67d1693828e8f42a91862816d7953e2c9d3f23
+    command: ["httpd", "-f", "-p", "8000", "-h", "/srv/indexer"]
+    read_only: true
+    user: "65532:65532"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./testdata/indexer:/srv/indexer:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8000/height"]
+      interval: 1s
+      timeout: 2s
+      retries: 10
+    networks:
+      - dogelytics
+
+  dogelytics:
+    environment:
+      INDEXER_API_URL: http://indexer-fixture:8000
+    depends_on:
+      indexer-fixture:
+        condition: service_healthy
